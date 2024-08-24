@@ -51,17 +51,31 @@ static bool get_rained_version(const std::filesystem::path &rained_path, std::st
         return false;
 
     version = res.substr(7);
+
+    // trim whitespace at end
+    for (auto it = version.rbegin(); it != version.rend(); it++)
+    {
+        if (!std::isspace(*it))
+        {
+            version.erase(it.base(), version.end());
+            break;
+        }
+    }
+
     return true;
 }
 
 static bool process_rained_versions(std::vector<ReleaseInfo> &releases)
 {
-    /*
-    printf("user agent: %s\n", user_agent);
+    // TODO: add https://api.github.com/repos/pkhead/rained/releases/tags/nightly to the top of the list
 
+#ifdef DEBUG
+    std::ifstream test_f("releases.json");
+    json result = json::parse(test_f);
+#else
     cpr::Response r = cpr::Get(
         cpr::Url("https://api.github.com/repos/pkhead/rained/releases"),
-        cpr::UserAgent(user_agent)
+        cpr::UserAgent(USER_AGENT)
     );
 
     printf("status code: %li\n", r.status_code);
@@ -77,9 +91,8 @@ static bool process_rained_versions(std::vector<ReleaseInfo> &releases)
         return false;
     }
 
-    json result = json::parse(r.text);*/
-    std::ifstream test_f("releases.json");
-    json result = json::parse(test_f);
+    json result = json::parse(r.text);
+#endif
     
     if (!result.is_array())
         return false;
@@ -92,7 +105,9 @@ static bool process_rained_versions(std::vector<ReleaseInfo> &releases)
         release.version_name = it->at("name");
 
         // don't show beta versions...
+        // or nightly, code manually fetches data for that
         if (release.version_name[0] == 'b') continue;
+        if (it->at("tag_name") == "nightly") continue;
 
         release.api_url = it->at("url");
         release.url = it->at("html_url");

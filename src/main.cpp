@@ -46,7 +46,7 @@ void frame(GLFWwindow *window)
         ImVec2 display_size = ImGui::GetMainViewport()->WorkSize;
 #endif
 
-        ImVec2 window_size = ImVec2(ImGui::GetFontSize() * 40.0f, ImGui::GetFontSize() * 24.0f);
+        ImVec2 window_size = ImVec2(ImGui::GetFontSize() * 50.0f, ImGui::GetFontSize() * 30.0f);
         ImGui::SetNextWindowSize(window_size);
         ImGui::SetNextWindowPos(ImVec2((display_size.x - window_size.x) / 2.0f, (display_size.y - window_size.y) / 2.0f));
 
