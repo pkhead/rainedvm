@@ -9,6 +9,8 @@ sources = files(
     'src/main.cpp',
     'src/sys.cpp',
     'src/app.cpp',
+    'src/zip.cpp',
+    'src/util.cpp',
 
     # imgui sources
     'imgui/imgui_demo.cpp',
@@ -27,6 +29,7 @@ deps = []
 deps += dependency('freetype2', static : host_machine.system() == 'windows')
 deps += dependency('glfw3', static : true) # TODO: this isn't statically linking on linux...
 deps += dependency('cpr', static : host_machine.system() == 'windows')
+deps += dependency('minizip')
 deps += dependency('gl')
 
 link_args = []

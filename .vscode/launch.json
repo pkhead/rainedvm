@@ -11,7 +11,7 @@
             "program": "${workspaceFolder}/builddir/Rained.Update",
             "args": [],
             "env": {
-                "RAINED": "/home/nabcat/Documents/src/rained/build_linux-x64/Rained"
+                "RAINED_DIRECTORY": "/home/nabcat/Documents/src/rained/build_linux-x64/"
             },
             "cwd": "${workspaceFolder}",
             "preLaunchTask": "Meson Build"

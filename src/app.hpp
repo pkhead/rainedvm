@@ -2,6 +2,10 @@
 
 #include <string>
 #include <vector>
+#include <filesystem>
+#include <memory>
+#include <thread>
+#include <mutex>
 
 struct ReleaseInfo
 {
@@ -11,7 +15,23 @@ struct ReleaseInfo
     std::string changelog;
     std::string linux_download_url;
     std::string windows_download_url;
-};
+}; // struct ReleaseInfo
+
+class InstallTask
+{
+private:
+    std::thread _thread;
+    std::mutex _mutex;
+
+    float _progress;
+    bool _cancel_requested;
+    
+public:
+    InstallTask(const ReleaseInfo &release);
+
+    void get_progress(std::string &out_msg, float &out_progress);
+    void cancel();
+}; // class InstallTask
 
 class Application
 {
@@ -24,11 +44,14 @@ private:
     } cur_state;
 
     unsigned int frame;
+    std::filesystem::path rained_dir;
     std::string current_version;
     std::vector<ReleaseInfo> available_versions;
 
     int selected_version;
     bool about_window_open = false;
+
+    void install_version(const ReleaseInfo &release_info);
 
 public:
     Application();

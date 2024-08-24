@@ -4,15 +4,28 @@
 #include "app.hpp"
 #include "sys.hpp"
 #include "json.hpp"
+#include "zip.hpp"
 #include "imgui_markdown.h"
+#include "util.hpp"
 
 using namespace nlohmann; // what
+
+const char *USER_AGENT = "RainedVersionManager/" RAINEDUPDATE_VERSION " (" SYS_TRIPLET ") libcpr/" CPR_VERSION " libcurl/" LIBCURL_VERSION;
 
 Application::Application()
 {
     frame = 0;
     cur_state = AppState::FETCH_LIST;
     selected_version = -1;
+
+    // obtain rained directory from the RAINED_DIRECTORY environment variable,
+    // or if not defined the current working directory.
+    const char *rained_env = std::getenv("RAINED_DIRECTORY");
+
+    if (rained_env == nullptr)
+        rained_dir = std::filesystem::current_path();
+    else
+        rained_dir = std::filesystem::u8path(rained_env).native();
 }
 
 Application::~Application()
@@ -21,18 +34,14 @@ Application::~Application()
 }
 
 // get the installed rained version by querying the executable
-static bool get_rained_version(std::string &version)
+static bool get_rained_version(const std::filesystem::path &rained_path, std::string &version)
 {
-    const char *rained_exe = std::getenv("RAINED");
-    if (rained_exe == nullptr)
-    {
-        rained_exe = "Rained";
-    }
+    std::filesystem::path rained_exe_path = rained_path / "Rained";
 
 #if _WIN32
-    std::string const_cmd = std::string(rained_exe) + " --console --version";
+    std::string const_cmd = rained_exe_path.u8string() + " --console --version";
 #else
-    std::string const_cmd = std::string(rained_exe) + " --version";
+    std::string const_cmd = rained_exe_path.u8string() + " --version";
 #endif
 
     std::string res;
@@ -45,35 +54,9 @@ static bool get_rained_version(std::string &version)
     return true;
 }
 
-#if defined(__x86_64__) || defined(_M_X64)
-#define SYS_ARCH "x86_64"
-#elif defined(i386) || defined(__i386__) || defined(__i386) || defined(_M_IX86)
-#define SYS_ARCH "i386"
-#else
-#define SYS_ARCH "unknown"
-#endif
-
-#ifdef _WIN32
-#define SYS_OS "pc-windows"
-#elif defined(__APPLE__)
-#define SYS_OS "apple"
-#elif defined(__linux__)
-#define SYS_OS "linux"
-#else
-#define SYS_OS "unknown"
-#endif
-
-#ifdef __GNUC__
-#define SYS_ABI "gnu"
-#elif defined(_MSC_VER)
-#define SYS_ABI "msvc"
-#else
-#define SYS_ABI "unknown"
-#endif
-
 static bool process_rained_versions(std::vector<ReleaseInfo> &releases)
 {
-    /*const char *user_agent = "Rained.Update/" RAINEDUPDATE_VERSION " (" SYS_ARCH "-" SYS_OS "-" SYS_ABI ") libcpr/" CPR_VERSION " libcurl/" LIBCURL_VERSION;
+    /*
     printf("user agent: %s\n", user_agent);
 
     cpr::Response r = cpr::Get(
@@ -165,6 +148,8 @@ void Application::render_main_window()
             ImGui::BulletText("Dear ImGui");
             ImGui::BulletText("nlohmann::json");
             ImGui::BulletText("imgui_markdown");
+            ImGui::BulletText("minizip-ng");
+            ImGui::BulletText("cpr");
         } ImGui::End();
     }
 
@@ -178,9 +163,19 @@ void Application::render_main_window()
             {
                 try
                 {
-                    if (get_rained_version(current_version) &&
+                    if (get_rained_version(rained_dir, current_version) &&
                         process_rained_versions(available_versions))
                     {
+                        // set selected version to current
+                        for (unsigned int i = 0; i < available_versions.size(); i++)
+                        {
+                            if (available_versions[i].version_name == current_version)
+                            {
+                                selected_version = i;
+                                break;
+                            }
+                        }
+
                         cur_state = AppState::CHOOSE_VERSION;
                     }
                     else
@@ -228,20 +223,122 @@ void Application::render_main_window()
             ImGui::EndChild();
 
             ImGui::SameLine();
-            ImGui::BeginChild("Changelog", ImGui::GetContentRegionAvail());
+            ImGui::BeginGroup();
+
             if (selected_version >= 0)
             {
+                ImVec2 content_region_avail = ImGui::GetContentRegionAvail();
+                ImGui::BeginChild("Changelog", ImVec2(content_region_avail.x, content_region_avail.y - ImGui::GetFrameHeight() - ImGui::GetStyle().ItemSpacing.y));
                 ReleaseInfo &release = available_versions[selected_version];
 
                 ImGui::MarkdownConfig md_config{};
                 md_config.formatCallback = ImGui::defaultMarkdownFormatCallback;
                 md_config.linkCallback = markdown_link_callback;
                 ImGui::Markdown(release.changelog.c_str(), release.changelog.length(), md_config);
+
+                ImGui::EndChild();
+                ImGui::BeginDisabled(release.version_name == current_version);
+                if (ImGui::Button("Install"))
+                {
+                    install_version(available_versions[selected_version]);
+                }
+                ImGui::EndDisabled();
             }
-            ImGui::EndChild();
+
+            ImGui::EndGroup();
             break;
         }
     }
     
     frame++;
+}
+
+void Application::install_version(const ReleaseInfo &release)
+{
+    // install zip
+    // TODO: uncomment download code when path is working...
+    std::filesystem::path temp_path = std::filesystem::temp_directory_path() / ("rainedvm-rained-" + release.version_name);
+    std::string download_url;
+
+#if defined(_WIN32)
+    if (strcmp(SYS_ARCH, "x86_64") == 0)
+        download_url = release.windows_download_url;
+#elif defined(__linux__)
+    if (strcmp(SYS_ARCH, "x86_64") == 0)
+        download_url = release.linux_download_url;
+#elif defined(__APPLE__)
+    if (strcmp(SYS_ARCH, "x86_64") == 0)
+        download_url = release.macos_download_url;
+#endif
+
+    if (download_url.empty())
+    {
+        throw std::runtime_error("ERROR: no " SYS_OS  " download for " + release.version_name);
+        return;
+    }
+
+    if (!std::filesystem::exists(temp_path))
+        std::filesystem::create_directory(temp_path);
+
+#ifdef _WIN32
+    std::filesystem::path download_archive_path = temp_path / "download.zip";
+#elif defined(__linux__)
+    std::filesystem::path download_archive_path = temp_path / "download.tar.gz";
+#else
+    #error No version downloader for this platform
+#endif
+
+    // download archive
+    if (!std::filesystem::exists(download_archive_path))
+    {
+        std::ofstream ar_of(download_archive_path, std::ios::binary);
+        cpr::Response r = cpr::Download(ar_of,
+            cpr::Url(download_url),
+            cpr::UserAgent(USER_AGENT)
+        );
+
+        if (r.status_code != 200)
+        {
+            throw std::runtime_error("ERROR: http download status code is " + std::to_string(r.status_code));
+            return;
+        }
+    }
+
+    std::filesystem::path install_path = temp_path / "extracted";
+    if (!std::filesystem::exists(install_path))
+        std::filesystem::create_directory(install_path);
+
+    // zip extract
+#ifdef _WIN32
+    {
+        zip::ZipExtractor zip_reader(temp_path / "download.zip", install_path);
+        zip_reader.extract();
+    }
+#elif defined(__linux__)
+    {
+        std::string gzip_cmd = "gzip -dk \"" + download_archive_path.u8string() + "\"";
+        std::string tar_cmd = "tar -C \"" + install_path.u8string() + "\" -xf \"" + (temp_path / "download.tar").u8string() + "\"";
+
+        std::string _;
+        if (sys::subprocess(gzip_cmd, _) != 0)
+        {
+            throw std::runtime_error(util::format("command failed: %s\n", gzip_cmd.c_str()));
+            return;
+        }
+
+        if (sys::subprocess(tar_cmd, _) != 0)
+        {
+            std::filesystem::remove(temp_path / "download.tar");
+            throw std::runtime_error(util::format("command failed: %s\n", tar_cmd.c_str()));
+            return;
+        }
+
+        std::filesystem::remove(temp_path / "download.tar");
+    }
+#else
+    #error "No version extractor for this platform"
+#endif
+
+    std::filesystem::remove_all(install_path);
+    printf("%s\n", temp_path.c_str());
 }
