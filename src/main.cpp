@@ -15,6 +15,7 @@
 
 #ifdef _WIN32
 #include <windows.h>
+#define USE_IMGUI_VIEWPORTS
 #endif
 
 static void glfw_error_callback(int error, const char* description)
@@ -33,6 +34,7 @@ void frame(GLFWwindow *window)
     {
         init_window_pos = false;
 
+#ifdef USE_IMGUI_VIEWPORTS
         GLFWmonitor *monitor = glfwGetPrimaryMonitor();
 
         int monitor_pos[2];
@@ -40,17 +42,20 @@ void frame(GLFWwindow *window)
         glfwGetMonitorWorkarea(monitor, &monitor_pos[0], &monitor_pos[1], &monitor_size[0], &monitor_size[1]);
         
         ImVec2 display_size = ImVec2(monitor_size[0], monitor_size[1]);
-        ImVec2 window_size = ImVec2(ImGui::GetFontSize() * 40.0f, ImGui::GetFontSize() * 16.0f);
+#else
+        ImVec2 display_size = ImGui::GetMainViewport()->WorkSize;
+#endif
 
+        ImVec2 window_size = ImVec2(ImGui::GetFontSize() * 40.0f, ImGui::GetFontSize() * 24.0f);
         ImGui::SetNextWindowSize(window_size);
         ImGui::SetNextWindowPos(ImVec2((display_size.x - window_size.x) / 2.0f, (display_size.y - window_size.y) / 2.0f));
 
         init_window_pos = false;
     }
 
-    if (ImGui::Begin("Rained Version Manager", &p_open, ImGuiWindowFlags_NoSavedSettings))
+    if (ImGui::Begin("Rained Version Manager", &p_open, ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_MenuBar))
     {
-        application->render();
+        application->render_main_window();
     } ImGui::End();
 
     if (!p_open)
@@ -69,18 +74,31 @@ int entry()
     const char* glsl_version = "#version 130";
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
-    glfwWindowHint(GLFW_RESIZABLE, false);
-    glfwWindowHint(GLFW_DECORATED, false);
+    //glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+    //glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
     glfwWindowHint(GLFW_VISIBLE, false);
 #ifdef __APPLE__
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);            // 3.0+ only
 #endif
 
     // Create window with graphics context
-    GLFWwindow* window = glfwCreateWindow(480, 360, "Dear ImGui GLFW+OpenGL3 example", nullptr, nullptr);
+    const int WINDOW_WIDTH = 920;
+    const int WINDOW_HEIGHT = 720;
+    GLFWwindow* window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Rained Version Manager", nullptr, nullptr);
     if (window == nullptr)
         return 1;
     glfwMakeContextCurrent(window);
+
+    {
+        GLFWmonitor *monitor = glfwGetPrimaryMonitor();
+
+        int monitor_pos[2];
+        int monitor_size[2];
+        glfwGetMonitorWorkarea(monitor, &monitor_pos[0], &monitor_pos[1], &monitor_size[0], &monitor_size[1]);
+
+        glfwSetWindowPos(window, (monitor_size[0] - WINDOW_WIDTH) / 2, (monitor_size[1] - WINDOW_HEIGHT) / 2);
+    }
+
     glfwSwapInterval(1); // Enable vsync
 
     // Setup Dear ImGui context
@@ -89,8 +107,11 @@ int entry()
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     io.IniFilename = nullptr; // disable .ini
     io.LogFilename = nullptr;
+
+#ifdef USE_IMGUI_VIEWPORTS
     io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
     io.ConfigViewportsNoAutoMerge = true;
+#endif
 
     // Setup Dear ImGui style
     ImGui::StyleColorsDark();
@@ -117,6 +138,10 @@ int entry()
     }
 
     application = new Application;
+
+#if !defined(USE_IMGUI_VIEWPORTS)
+    glfwShowWindow(window);
+#endif
     
     while (!glfwWindowShouldClose(window))
     {
@@ -144,10 +169,11 @@ int entry()
         int display_w, display_h;
         glfwGetFramebufferSize(window, &display_w, &display_h);
         glViewport(0, 0, display_w, display_h);
-        glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+        glClearColor(0.5f, 0.5f, 0.5f, 0.0f);
         glClear(GL_COLOR_BUFFER_BIT);
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
+#ifdef USE_IMGUI_VIEWPORTS
         if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
         {
             GLFWwindow* backup_current_context = glfwGetCurrentContext();
@@ -155,6 +181,7 @@ int entry()
             ImGui::RenderPlatformWindowsDefault();
             glfwMakeContextCurrent(backup_current_context);
         }
+#endif
 
         glfwSwapBuffers(window);
     }

@@ -4,6 +4,7 @@
 #include "app.hpp"
 #include "sys.hpp"
 #include "json.hpp"
+#include "imgui_markdown.h"
 
 using namespace nlohmann; // what
 
@@ -11,6 +12,7 @@ Application::Application()
 {
     frame = 0;
     cur_state = AppState::FETCH_LIST;
+    selected_version = -1;
 }
 
 Application::~Application()
@@ -109,7 +111,8 @@ static bool process_rained_versions(std::vector<ReleaseInfo> &releases)
         // don't show beta versions...
         if (release.version_name[0] == 'b') continue;
 
-        release.url = it->at("url");
+        release.api_url = it->at("url");
+        release.url = it->at("html_url");
 
         auto assets = it->at("assets");
         if (!assets.is_array()) return false;
@@ -123,14 +126,48 @@ static bool process_rained_versions(std::vector<ReleaseInfo> &releases)
                 release.windows_download_url = asset->at("browser_download_url");
         }
 
+        release.changelog = std::string("[View on GitHub](") + release.url + ")\n" + std::string(it->at("body"));
+
         releases.push_back(release);
     }
 
     return true;
 }
 
-void Application::render()
+static void markdown_link_callback(ImGui::MarkdownLinkCallbackData data)
 {
+    if (data.isImage) return;
+    if (!sys::open_url(std::string(data.link, data.linkLength)))
+    {
+        fprintf(stderr, "could not open url");
+    }
+}
+
+void Application::render_main_window()
+{
+    ImGui::BeginMenuBar();
+    {
+        if (ImGui::MenuItem("About"))
+        {
+            about_window_open = true;
+        }
+    }
+    ImGui::EndMenuBar();
+
+    // about window
+    if (about_window_open)
+    {
+        if (ImGui::Begin("About", &about_window_open, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoCollapse))
+        {
+            ImGui::Text("Rained Version Manager " RAINEDUPDATE_VERSION);
+            ImGui::SeparatorText("Credits");
+            ImGui::BulletText("GLFW");
+            ImGui::BulletText("Dear ImGui");
+            ImGui::BulletText("nlohmann::json");
+            ImGui::BulletText("imgui_markdown");
+        } ImGui::End();
+    }
+
     switch (cur_state)
     {
         case AppState::FETCH_LIST:
@@ -168,17 +205,40 @@ void Application::render()
         
         case AppState::CHOOSE_VERSION:
         {
-            ImGui::Text("%s", current_version.c_str());
+            ImGui::Text("Current version: %s", current_version.c_str());
 
-            if (ImGui::BeginListBox("Versions"))
+            ImGuiChildFlags child_flags = ImGuiChildFlags_Border | ImGuiChildFlags_ResizeX;
+            ImGui::BeginChild("Version List", ImVec2(ImGui::GetFontSize() * 10.0f, -FLT_MIN), child_flags);
             {
+                int index = 0;
                 for (auto it = available_versions.begin(); it != available_versions.end(); it++)
                 {
-                    ImGui::Selectable(it->version_name.c_str());
-                }
+                    std::string label;
+                    if (it->version_name == current_version)
+                        label = it->version_name + " (current)";
+                    else
+                        label = it->version_name;
+                        
+                    if (ImGui::Selectable(label.c_str(), index == selected_version))
+                        selected_version = index;
 
-                ImGui::EndListBox();
+                    index++;
+                }
             }
+            ImGui::EndChild();
+
+            ImGui::SameLine();
+            ImGui::BeginChild("Changelog", ImGui::GetContentRegionAvail());
+            if (selected_version >= 0)
+            {
+                ReleaseInfo &release = available_versions[selected_version];
+
+                ImGui::MarkdownConfig md_config{};
+                md_config.formatCallback = ImGui::defaultMarkdownFormatCallback;
+                md_config.linkCallback = markdown_link_callback;
+                ImGui::Markdown(release.changelog.c_str(), release.changelog.length(), md_config);
+            }
+            ImGui::EndChild();
             break;
         }
     }
