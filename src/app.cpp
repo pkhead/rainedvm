@@ -264,11 +264,93 @@ void Application::render_main_window()
             break;
         }
     }
+
+    if (_install_task)
+    {
+        std::string prog_msg;
+        float progress_value;
+        bool is_done = !_install_task->get_progress(prog_msg, progress_value);
+
+        if (is_done)
+        {
+            _install_task = nullptr;
+        }
+        else
+        {
+            if (!ImGui::IsPopupOpen("Installing..."))
+                ImGui::OpenPopup("Installing...");
+
+            if (ImGui::BeginPopupModal("Installing...", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+            {
+                float max_width = ImGui::GetFontSize() * 30.0f;
+
+                ImGui::PushTextWrapPos(max_width);
+                ImGui::TextWrapped("%s", prog_msg.c_str());
+                ImGui::PopTextWrapPos();
+
+                if (progress_value >= 0.0f)
+                {
+                    ImGui::ProgressBar(progress_value, ImVec2(max_width, 0.0f));
+                }
+                else // negative progress value means it should display an indeterminate value
+                {
+                    ImGui::ProgressBar(-1.0f * ImGui::GetTime(), ImVec2(max_width, 0.0f));
+                }
+                ImGui::EndPopup();
+            }
+        }
+    }
     
     frame++;
 }
 
-void Application::install_version(const ReleaseInfo &release)
+
+
+
+
+
+
+
+///////////////////////
+// INSTALLATION TASK //
+///////////////////////
+
+InstallTask::InstallTask(const ReleaseInfo &release) :
+    release(release)
+{
+    _progress = 0;
+    _cancel_requested = false;
+    _is_thread_done = false;
+
+    _thread = std::thread(&InstallTask::_thread_proc, this);
+}
+
+bool InstallTask::get_progress(std::string &out_msg, float &out_progress)
+{
+    std::lock_guard guard(_mutex);
+    if (_is_thread_done) return false;
+
+    out_msg = _prog_msg;
+    out_progress = _progress;
+
+    return true;
+}
+
+void InstallTask::cancel()
+{
+    std::lock_guard guard(_mutex);
+    _cancel_requested = true;
+}
+
+void InstallTask::_thread_proc()
+{
+    _install();
+
+    auto guard = std::lock_guard(_mutex);
+    _is_thread_done = true;
+}
+
+void InstallTask::_install()
 {
     // install zip
     // TODO: uncomment download code when path is working...
@@ -306,10 +388,23 @@ void Application::install_version(const ReleaseInfo &release)
     // download archive
     if (!std::filesystem::exists(download_archive_path))
     {
+        {
+            auto guard = std::lock_guard(_mutex);
+            _prog_msg = "Downloading from " + download_url + "...";
+        }
+
         std::ofstream ar_of(download_archive_path, std::ios::binary);
         cpr::Response r = cpr::Download(ar_of,
             cpr::Url(download_url),
-            cpr::UserAgent(USER_AGENT)
+            cpr::UserAgent(USER_AGENT),
+            cpr::ProgressCallback([&](cpr::cpr_off_t download_total, cpr::cpr_off_t download_now, cpr::cpr_off_t, cpr::cpr_off_t, intptr_t userdata)
+            {
+                (void)userdata;
+
+                auto guard = std::lock_guard(_mutex);
+                _progress = (float)download_now / download_total;
+                return !_cancel_requested;
+            })
         );
 
         if (r.status_code != 200)
@@ -317,12 +412,20 @@ void Application::install_version(const ReleaseInfo &release)
             throw std::runtime_error("ERROR: http download status code is " + std::to_string(r.status_code));
             return;
         }
+
+        auto guard = std::lock_guard(_mutex);
+        if (_cancel_requested) return;
     }
 
     std::filesystem::path install_path = temp_path / "extracted";
     if (!std::filesystem::exists(install_path))
         std::filesystem::create_directory(install_path);
 
+    {
+        auto guard = std::lock_guard(_mutex);
+        _prog_msg = "Extracting...";
+        _progress = -1.0f;
+    }
     // zip extract
 #ifdef _WIN32
     {
@@ -356,4 +459,15 @@ void Application::install_version(const ReleaseInfo &release)
 
     std::filesystem::remove_all(install_path);
     printf("%s\n", temp_path.c_str());
+}
+
+InstallTask::~InstallTask()
+{
+    if (_thread.joinable())
+        _thread.join();
+}
+
+void Application::install_version(const ReleaseInfo &release)
+{
+    _install_task = std::make_unique<InstallTask>(release);
 }

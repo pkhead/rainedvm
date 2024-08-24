@@ -13,8 +13,8 @@ namespace zip
         std::filesystem::path dest_directory;
     
     public:
-        ZipExtractor(ZipExtractor&) = delete;
-        ZipExtractor operator=(ZipExtractor&) = delete;
+        ZipExtractor(const ZipExtractor&) = delete;
+        ZipExtractor& operator=(ZipExtractor const&) = delete;
 
         ZipExtractor(std::filesystem::path zip_path, std::filesystem::path dest_directory);
         ~ZipExtractor();

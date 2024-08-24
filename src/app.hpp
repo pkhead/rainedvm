@@ -23,13 +23,25 @@ private:
     std::thread _thread;
     std::mutex _mutex;
 
+    std::string _prog_msg;
     float _progress;
     bool _cancel_requested;
+
+    bool _is_thread_done;
+
+    const ReleaseInfo release;
+
+    void _thread_proc();
+    void _install();
     
 public:
+    InstallTask(const InstallTask&) = delete;
+    InstallTask& operator=(InstallTask const&) = delete;
     InstallTask(const ReleaseInfo &release);
+    ~InstallTask();
 
-    void get_progress(std::string &out_msg, float &out_progress);
+    // returns true if still processing, false if done.
+    bool get_progress(std::string &out_msg, float &out_progress);
     void cancel();
 }; // class InstallTask
 
@@ -48,12 +60,17 @@ private:
     std::string current_version;
     std::vector<ReleaseInfo> available_versions;
 
+    std::unique_ptr<InstallTask> _install_task;
+
     int selected_version;
     bool about_window_open = false;
 
     void install_version(const ReleaseInfo &release_info);
 
 public:
+    Application(const Application&) = delete;
+    Application& operator=(Application const&) = delete;
+
     Application();
     ~Application();
 
