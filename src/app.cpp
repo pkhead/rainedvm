@@ -108,7 +108,7 @@ static bool process_rained_versions(std::vector<ReleaseInfo> &releases)
 
         // don't show beta versions...
         if (release.version_name[0] == 'b') continue;
-        
+
         release.url = it->at("url");
 
         auto assets = it->at("assets");
@@ -151,7 +151,7 @@ void Application::render()
                         cur_state = AppState::FETCH_LIST_ERROR;
                     }
                 }
-                catch (std::runtime_error)
+                catch (...)
                 {
                     cur_state = AppState::FETCH_LIST_ERROR;
                 }

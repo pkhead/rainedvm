@@ -10,6 +10,7 @@
                 "kind": "build",
                 "isDefault": true
             },
+            "problemMatcher": "$meson-gcc",
             "presentation": {
                 "echo": true,
                 "reveal": "silent",

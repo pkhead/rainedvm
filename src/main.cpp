@@ -1,12 +1,6 @@
 /**
- * Updater executable.
- * I don't think it's a good idea to have the main Rained.exe executable update itself
- * (or if it's even possible?), so I'll have a singular executable file that performs the
- * update.
- *
- * I'M FREE FROM C#!!!! GOODBYE SLOW BUILD SYSTEM!!!! GOODBYE GRAPHICS LIBRARY BINDING HELL!!!!
- * hello questionably backwards-compatible language design...
-*/
+* Application entry point and ImGui setup
+**/
 
 #include <cstdio>
 #include <cstring>
@@ -22,37 +16,6 @@
 #ifdef _WIN32
 #include <windows.h>
 #endif
-
-/*
-void frame()
-{
-    const int width = sapp_width();
-    const int height = sapp_height();
-    simgui_new_frame({ width, height, sapp_frame_duration(), 1.0f });
-
-    bool p_open = true;
-    ImGui::SetNextWindowSize(ImGui::GetMainViewport()->WorkSize);
-    ImGui::SetNextWindowPos(ImGui::GetMainViewport()->WorkPos);
-    if (ImGui::Begin("Rained Update", &p_open, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove))
-    {
-        ImGui::Text("Hello, world!");
-    } ImGui::End();
-
-    if (!p_open)
-    {
-        sapp_request_quit();
-    }
-
-    // the sokol_gfx draw pass
-    sg_pass pass = {};
-    pass.action = pass_action;
-    pass.swapchain = sglue_swapchain();
-    sg_begin_pass(&pass);
-    simgui_render();
-    sg_end_pass();
-    sg_commit();
-}
-*/
 
 static void glfw_error_callback(int error, const char* description)
 {
@@ -124,6 +87,8 @@ int entry()
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
+    io.IniFilename = nullptr; // disable .ini
+    io.LogFilename = nullptr;
     io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
     io.ConfigViewportsNoAutoMerge = true;
 
