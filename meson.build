@@ -9,7 +9,7 @@ sources = files(
     'src/main.cpp',
     'src/sys.cpp',
     'src/app.cpp',
-    'src/zip.cpp',
+    'src/archive.cpp',
     'src/util.cpp',
 
     # imgui sources

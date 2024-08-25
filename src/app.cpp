@@ -1,10 +1,11 @@
 #include <imgui.h>
 #include <cstdio>
+#include <sstream>
 #include <cpr/cpr.h>
 #include "app.hpp"
 #include "sys.hpp"
 #include "json.hpp"
-#include "zip.hpp"
+#include "archive.hpp"
 #include "imgui_markdown.h"
 #include "util.hpp"
 
@@ -44,9 +45,10 @@ static bool get_rained_version(const std::filesystem::path &rained_path, std::st
     std::string const_cmd = rained_exe_path.u8string() + " --version";
 #endif
 
-    std::string res;
-    sys::subprocess(const_cmd, res);
-    
+    std::stringstream p_res;
+    sys::subprocess(const_cmd, p_res);
+    std::string res = p_res.str();
+
     if (res.substr(0, 7) != "Rained ")
         return false;
 
@@ -315,7 +317,8 @@ void Application::render_main_window()
 // INSTALLATION TASK //
 ///////////////////////
 
-InstallTask::InstallTask(const ReleaseInfo &release) :
+InstallTask::InstallTask(const std::filesystem::path &rained_dir, const ReleaseInfo &release) :
+    _rained_dir(rained_dir),
     release(release)
 {
     _progress = 0;
@@ -434,27 +437,11 @@ void InstallTask::_install()
     }
 #elif defined(__linux__)
     {
-        std::string gzip_cmd = "gzip -dk \"" + download_archive_path.u8string() + "\"";
-        std::string tar_cmd = "tar -C \"" + install_path.u8string() + "\" -xf \"" + (temp_path / "download.tar").u8string() + "\"";
-
-        std::string _;
-        if (sys::subprocess(gzip_cmd, _) != 0)
-        {
-            throw std::runtime_error(util::format("command failed: %s\n", gzip_cmd.c_str()));
-            return;
-        }
-
-        if (sys::subprocess(tar_cmd, _) != 0)
-        {
-            std::filesystem::remove(temp_path / "download.tar");
-            throw std::runtime_error(util::format("command failed: %s\n", tar_cmd.c_str()));
-            return;
-        }
-
-        std::filesystem::remove(temp_path / "download.tar");
+        archive::tar_archive ar = archive::tar_archive::from_gzipped(download_archive_path);
+        ar.extract_all(install_path);
     }
 #else
-    #error "No version extractor for this platform"
+    #error "No decompressor for this platform's archive type"
 #endif
 
     std::filesystem::remove_all(install_path);
@@ -469,5 +456,5 @@ InstallTask::~InstallTask()
 
 void Application::install_version(const ReleaseInfo &release)
 {
-    _install_task = std::make_unique<InstallTask>(release);
+    _install_task = std::make_unique<InstallTask>(rained_dir, release);
 }

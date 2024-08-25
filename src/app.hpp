@@ -22,6 +22,7 @@ class InstallTask
 private:
     std::thread _thread;
     std::mutex _mutex;
+    std::string _rained_dir;
 
     std::string _prog_msg;
     float _progress;
@@ -37,7 +38,7 @@ private:
 public:
     InstallTask(const InstallTask&) = delete;
     InstallTask& operator=(InstallTask const&) = delete;
-    InstallTask(const ReleaseInfo &release);
+    InstallTask(const std::filesystem::path &rained_dir, const ReleaseInfo &release);
     ~InstallTask();
 
     // returns true if still processing, false if done.

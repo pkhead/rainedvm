@@ -1,5 +1,7 @@
 #pragma once
+#include <ostream>
 #include <string>
+#include <vector>
 
 #if defined(__x86_64__) || defined(_M_X64)
 #define SYS_ARCH "x86_64"
@@ -31,6 +33,10 @@
 
 namespace sys
 {
-    int subprocess(const std::string &cmdline, std::string &out_stdout);
+    int subprocess(const std::string &cmdline, std::ostream &stdout_stream);
+    int subprocess(const std::string &cmdline);
+
     bool open_url(const std::string &url);
+
+    const std::vector<std::string>& arguments();
 }

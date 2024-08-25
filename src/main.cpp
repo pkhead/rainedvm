@@ -12,6 +12,7 @@
 
 #include "proggy_vector.h"
 #include "app.hpp"
+#include "sys_args_internal.hpp"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -200,8 +201,9 @@ int entry()
 }
 
 // Main code
-int main(int, char**)
+int main(int argc, char *argv[])
 {
+    sys::set_arguments(argc, argv);
     return entry();
 }
 

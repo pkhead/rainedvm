@@ -1,6 +1,7 @@
 #include <system_error>
 #include <stdio.h>
 #include "sys.hpp"
+#include "sys_args_internal.hpp"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -10,7 +11,7 @@
 #include <sys/wait.h>
 #endif
 
-int sys::subprocess(const std::string &cmdline, std::string &out_stdout)
+int sys::subprocess(const std::string &cmdline, std::ostream &stdout_stream)
 {
 #ifdef _WIN32
     STARTUPINFO si;
@@ -98,8 +99,21 @@ int sys::subprocess(const std::string &cmdline, std::string &out_stdout)
     while (!feof(pipe))
     {
         if (fgets(buf, 128, pipe) != nullptr)
-            out_stdout += buf;
+            stdout_stream << buf;
     }
+
+    return pclose(pipe);
+#endif
+}
+
+int sys::subprocess(const std::string &cmdline)
+{
+#ifdef _WIN32
+    #error sys::subprocess(const std::string& cmdline) is not defined for Windows
+#else
+    auto pipe = popen(cmdline.c_str(), "r");
+    if (!pipe)
+        return false;
 
     return pclose(pipe);
 #endif
@@ -131,4 +145,20 @@ bool sys::open_url(const std::string &url)
 
     return true;
 #endif
+}
+
+static std::vector<std::string> _args;
+
+const std::vector<std::string>& sys::arguments()
+{
+    return _args;
+}
+
+void sys::set_arguments(int argc, char **argv)
+{
+    _args.resize(argc);
+    for (int i = 0; i < argc; i++)
+    {
+        _args[i] = argv[i];
+    }
 }
