@@ -82,6 +82,34 @@ void archive::zip_archive::extract_file(const std::filesystem::path &entry_path,
         throw archive::archive_exception("could not write to file");
 }
 
+void archive::zip_archive::extract_file(const std::filesystem::path &entry_path, std::ostream &dest_stream)
+{
+    if (mz_zip_reader_locate_entry(p_impl->zip_reader, entry_path.c_str(), false) != MZ_OK)
+        throw archive::archive_exception("could not locate entry");
+
+    if (mz_zip_reader_entry_open(p_impl->zip_reader) != MZ_OK)
+        throw archive::archive_exception("could not open entry");
+
+    char buf[1024];
+    int32_t bytes_read = 0;
+    int32_t err = MZ_OK;
+    do
+    {
+        bytes_read = mz_zip_reader_entry_read(p_impl->zip_reader, buf, sizeof(buf));
+        if (bytes_read < 0)
+        {
+            err = bytes_read;
+            break;
+        }
+
+        dest_stream.write(buf, bytes_read);
+    } while (bytes_read > 0);
+    mz_zip_reader_entry_close(p_impl->zip_reader);
+
+    if (err != MZ_OK)
+        throw archive::archive_exception("could not read entry");
+}
+
 const std::vector<std::filesystem::path>& archive::zip_archive::files()
 {
     return p_impl->entries;
@@ -164,6 +192,13 @@ void archive::tar_archive::extract_file(const std::filesystem::path &entry_path,
 {
     std::string cmd = util::format("tar -C \"%s\" -xf \"%s\" \"%s\"", dest_dir.u8string().c_str(), archive_path.u8string().c_str(), entry_path.u8string().c_str());
     if (sys::subprocess(cmd) != 0)
+        throw archive::archive_exception("failed to extract file");
+}
+
+void archive::tar_archive::extract_file(const std::filesystem::path &entry_path, std::ostream &dest_stream)
+{
+    std::string cmd = util::format("tar -xOf \"%s\" \"%s\"", archive_path.u8string().c_str(), entry_path.u8string().c_str());
+    if (sys::subprocess(cmd, dest_stream) != 0)
         throw archive::archive_exception("failed to extract file");
 }
 

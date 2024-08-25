@@ -90,16 +90,17 @@ int sys::subprocess(const std::string &cmdline, std::ostream &stdout_stream)
     
     return (int)exitCode;
 #else
-    char buf[128];
+    char buf[1024];
 
     auto pipe = popen(cmdline.c_str(), "r");
     if (!pipe)
         return -1;
     
+    size_t count;
     while (!feof(pipe))
     {
-        if (fgets(buf, 128, pipe) != nullptr)
-            stdout_stream << buf;
+        if ((count = fread(buf, 1, sizeof(buf), pipe)) > 0)
+            stdout_stream.write(buf, count);
     }
 
     return pclose(pipe);

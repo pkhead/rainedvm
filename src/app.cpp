@@ -1,6 +1,7 @@
 #include <imgui.h>
 #include <cstdio>
 #include <sstream>
+#include <cassert>
 #include <cpr/cpr.h>
 #include <unordered_set>
 #include "app.hpp"
@@ -572,14 +573,77 @@ void InstallTask::_install()
         {
             // don't delete the version manager executable or config/imgui.ini
             // and additionally, make sure that they aren't replaced when installing
-            if (path == vm_exe_path || path == "config/imgui.ini")
+            bool ignore_file = path == vm_exe_path || path == "config/imgui.ini";
+
+            std::filesystem::path file_dest_path = _rained_dir / path;
+
+            // don't perform any checks in the drizzle cast folder
+            // it's not named drizzle rn, but i do wish i named it that...
+            // future-proofing it
+            std::string path_str = path.u8string();
+            if (!ignore_file &&
+                path_str.substr(0, 15) != "assets/internal" &&
+                path_str.substr(0, 14) != "assets/drizzle" &&
+                std::filesystem::is_regular_file(file_dest_path))
             {
-                if (std::filesystem::exists(_rained_dir / path))
+                bool is_different = false;
+
+                std::ifstream file_data(file_dest_path, std::ios::binary);
+                if (file_data.is_open())
+                {
+                    std::stringstream orig_data;
+                    ar_for_cur->extract_file(path, orig_data);
+
+                    char buf0[1024];
+                    char buf1[1024];
+                    int buf0_read = 0;
+                    int buf1_read = 0;
+                    while (true)
+                    {
+                        file_data.read(buf0, sizeof(buf0));
+                        buf0_read = file_data.gcount();
+
+                        orig_data.read(buf1, sizeof(buf1));
+                        buf1_read = file_data.gcount();
+
+                        if (file_data.eof() != orig_data.eof() || buf0_read != buf1_read)
+                        {
+                            is_different = true;
+                            break;
+                        }
+
+                        assert(buf0_read == buf1_read);
+                        if (memcmp(buf0, buf1, buf0_read) != 0)
+                        {
+                            is_different = true;
+                            break;
+                        }
+
+                        if (file_data.eof() || orig_data.eof())
+                            break;
+                    }
+                }
+                else
+                {
+                    printf("could not open %s", file_dest_path.u8string().c_str());
+                }
+
+                if (is_different)
+                {
+                    printf("changed: %s\n", path.u8string().c_str());
+                    ignore_file = true;
+                    // TODO: ask user if they want to keep the changes or have it be overwritten
+                }
+            }
+
+            if (ignore_file)
+            {
+                if (std::filesystem::exists(file_dest_path))
                     ignore_list.emplace(path);
             }
             else
             {
-                std::filesystem::remove(_rained_dir / path);
+                std::filesystem::remove(file_dest_path);
 
                 if (path.has_parent_path())
                     directories.emplace(path.parent_path());
@@ -618,11 +682,6 @@ void InstallTask::_install()
         _progress = (float)files_processed / files.size();
         if (_cancel_requested) return; // hmm... seems like a bad idea to cancel here
     }
-
-    //ar.extract_all(install_path);
-
-    //std::filesystem::remove_all(install_path);
-    //printf("%s\n", temp_path.c_str());
 }
 
 InstallTask::~InstallTask()

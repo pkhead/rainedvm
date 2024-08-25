@@ -2,6 +2,7 @@
 
 #include <filesystem>
 #include <vector>
+#include <ostream>
 
 namespace archive
 {
@@ -38,6 +39,11 @@ namespace archive
         virtual void extract_file(const std::filesystem::path &entry_path, const std::filesystem::path &dest_dir) = 0;
 
         /**
+        * Extract a file to stream.
+        **/
+        virtual void extract_file(const std::filesystem::path &entry_path, std::ostream &dest_stream) = 0;
+
+        /**
         * Extract all files from the archive into a destination directory.
         **/
         virtual void extract_all(const std::filesystem::path &dest_dir) = 0;
@@ -51,13 +57,14 @@ namespace archive
     private:
         struct impl;
         impl *p_impl;
-    
     public:
+
         zip_archive(const std::filesystem::path &zip_path);
         ~zip_archive() override;
 
         const std::vector<std::filesystem::path>& files() override;
         void extract_file(const std::filesystem::path &entry_path, const std::filesystem::path &dest_dir) override;
+        void extract_file(const std::filesystem::path &entry_path, std::ostream &dest_stream) override;
         void extract_all(const std::filesystem::path &dest_dir) override;
     }; // class zip_archive
 
@@ -71,8 +78,8 @@ namespace archive
         impl *p_impl;
 
         tar_archive(const std::filesystem::path &tar_path, bool is_temporary);
-    
     public:
+
         tar_archive(tar_archive&&);
         tar_archive(const std::filesystem::path &tar_path);
         ~tar_archive() override;
@@ -81,6 +88,7 @@ namespace archive
 
         const std::vector<std::filesystem::path>& files() override;
         void extract_file(const std::filesystem::path &entry_path, const std::filesystem::path &dest_dir) override;
+        void extract_file(const std::filesystem::path &entry_path, std::ostream &dest_stream) override;
         void extract_all(const std::filesystem::path &dest_dir) override;
     }; // class gzip_archive
 } // namespace archive
