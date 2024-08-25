@@ -8,7 +8,7 @@
             "type": "lldb",
             "request": "launch",
             "name": "Debug",
-            "program": "${workspaceFolder}/builddir/Rained.Update",
+            "program": "${workspaceFolder}/builddir/rainedvm",
             "args": [],
             "env": {
                 // "RAINED_DIRECTORY": "/home/nabcat/Documents/src/rained/build_linux-x64/"

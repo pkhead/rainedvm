@@ -1,5 +1,5 @@
 project(
-    'Rained.Update',
+    'rainedvm',
     'cpp',
     version : '1.0.0',
     default_options : ['warning_level=3', 'cpp_std=c++17', 'default_library=static']
@@ -27,22 +27,24 @@ incdirs = include_directories('imgui')
 deps = []
 
 deps += dependency('freetype2', static : host_machine.system() == 'windows')
-deps += dependency('glfw3', static : true) # TODO: this isn't statically linking on linux...
-deps += dependency('cpr', static : host_machine.system() == 'windows')
+deps += dependency('glfw3', static : true)
+deps += dependency('cpr', static : true)
 deps += dependency('minizip')
 deps += dependency('gl')
 
+# if building with gcc on windows, make sure to statically link mingw libraries
 link_args = []
 if get_option('buildtype') == 'release' and meson.get_compiler('cpp').get_argument_syntax() == 'gcc' and host_machine.system() == 'windows'
     link_args += '-static'
 endif
 
+# debug define
 cpp_args = ['-DRAINEDUPDATE_VERSION="@0@"'.format(meson.project_version())]
 if get_option('buildtype') == 'debug'
     cpp_args += '-DDEBUG'
 endif
 
-executable('Rained.Update',
+executable('rainedvm',
     sources,
     include_directories : incdirs,
     dependencies : deps,
