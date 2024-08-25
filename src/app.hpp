@@ -22,15 +22,19 @@ class InstallTask
 private:
     std::thread _thread;
     std::mutex _mutex;
-    std::string _rained_dir;
+    std::filesystem::path _rained_dir;
 
     std::string _prog_msg;
     float _progress;
     bool _cancel_requested;
 
+    bool _thread_faulted;
+    std::string _thread_exception;
+
     bool _is_thread_done;
 
-    const ReleaseInfo release;
+    const ReleaseInfo cur_release;
+    const ReleaseInfo desired_release;
 
     void _thread_proc();
     void _install();
@@ -38,11 +42,12 @@ private:
 public:
     InstallTask(const InstallTask&) = delete;
     InstallTask& operator=(InstallTask const&) = delete;
-    InstallTask(const std::filesystem::path &rained_dir, const ReleaseInfo &release);
+    InstallTask(const std::filesystem::path &rained_dir, const ReleaseInfo &cur_release, const ReleaseInfo &desired_release);
     ~InstallTask();
 
     // returns true if still processing, false if done.
     bool get_progress(std::string &out_msg, float &out_progress);
+    bool get_exception(std::string &out_except);
     void cancel();
 }; // class InstallTask
 
@@ -61,6 +66,8 @@ private:
     std::string current_version;
     std::vector<ReleaseInfo> available_versions;
 
+    bool is_rained_installed;
+    ReleaseInfo cur_release_info;
     std::unique_ptr<InstallTask> _install_task;
 
     int selected_version;

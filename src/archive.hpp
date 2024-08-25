@@ -23,6 +23,7 @@ namespace archive
     
     public:
         basic_archive(const basic_archive&) = delete;
+        basic_archive(basic_archive&&);
         basic_archive& operator=(basic_archive const&) = delete;
         virtual ~basic_archive() {}
 
@@ -72,6 +73,7 @@ namespace archive
         tar_archive(const std::filesystem::path &tar_path, bool is_temporary);
     
     public:
+        tar_archive(tar_archive&&);
         tar_archive(const std::filesystem::path &tar_path);
         ~tar_archive() override;
 

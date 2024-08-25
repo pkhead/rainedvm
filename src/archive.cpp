@@ -13,6 +13,11 @@ archive::basic_archive::basic_archive(const std::filesystem::path &archive_path)
     archive_path(archive_path)
 {}
 
+archive::basic_archive::basic_archive(archive::basic_archive&& src)
+{
+    archive_path = std::move(src.archive_path);
+}
+
 //////////////////
 // .zip archive //
 //////////////////
@@ -111,6 +116,13 @@ archive::tar_archive::tar_archive(const std::filesystem::path &tar_path, bool is
     {
         p_impl->entries.push_back(line);
     }
+}
+
+archive::tar_archive::tar_archive(archive::tar_archive &&src) :
+    basic_archive(std::move(src))
+{
+    p_impl = src.p_impl;
+    src.p_impl = nullptr;
 }
 
 archive::tar_archive::~tar_archive()

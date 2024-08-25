@@ -1,3 +1,10 @@
+# meson stuff
 builddir
 subprojects/*
 !subprojects/*.wrap
+
+# version manager cache
+.rainedvm
+
+# rained build
+rained-build

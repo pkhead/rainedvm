@@ -94,7 +94,7 @@ int sys::subprocess(const std::string &cmdline, std::ostream &stdout_stream)
 
     auto pipe = popen(cmdline.c_str(), "r");
     if (!pipe)
-        return false;
+        return -1;
     
     while (!feof(pipe))
     {
