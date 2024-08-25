@@ -574,7 +574,8 @@ void InstallTask::_install()
             // and additionally, make sure that they aren't replaced when installing
             if (path == vm_exe_path || path == "config/imgui.ini")
             {
-                ignore_list.emplace(path);
+                if (std::filesystem::exists(_rained_dir / path))
+                    ignore_list.emplace(path);
             }
             else
             {
