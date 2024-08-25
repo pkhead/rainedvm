@@ -74,6 +74,7 @@ static bool get_rained_version(const std::filesystem::path &rained_path, std::st
 
 static bool process_rained_versions(std::vector<ReleaseInfo> &releases)
 {
+    printf("update version list\n");
     // TODO: add https://api.github.com/repos/pkhead/rained/releases/tags/nightly to the top of the list
 
 #ifdef DEBUG
@@ -148,6 +149,47 @@ static void markdown_link_callback(ImGui::MarkdownLinkCallbackData data)
     }
 }
 
+bool Application::query_current_version()
+{
+    is_rained_installed = true;
+
+    // rained not existing is a valid state...
+    if (!std::filesystem::is_regular_file(rained_dir / "Rained") && !std::filesystem::is_regular_file(rained_dir / "Rained.exe"))
+    {
+        is_rained_installed = false;
+        current_version.clear();
+    }
+    else if (!get_rained_version(rained_dir, current_version))
+    {
+        return false;
+    }
+
+    if (!available_versions.empty() || process_rained_versions(available_versions))
+    {
+        // set selected version to current
+        for (unsigned int i = 0; i < available_versions.size(); i++)
+        {
+            if (available_versions[i].version_name == current_version)
+            {
+                selected_version = i;
+                cur_release_info = available_versions[i];
+                break;
+            }
+        }
+
+        if (is_rained_installed && cur_release_info.url.empty())
+            throw std::runtime_error("could not find current release info...");
+
+        cur_state = AppState::CHOOSE_VERSION;
+    }
+    else
+    {
+        return false;
+    }
+    
+    return true;
+}
+
 void Application::render_main_window()
 {
     ImGui::BeginMenuBar();
@@ -183,47 +225,13 @@ void Application::render_main_window()
 
             if (frame > 10)
             {
-                try
-                {
-                    // rained not existing is a valid state...
-                    if (!std::filesystem::is_regular_file(rained_dir / "Rained") && !std::filesystem::is_regular_file(rained_dir / "Rained.exe"))
-                    {
-                        is_rained_installed = false;
-                        current_version.clear();
-                    }
-                    else if (!get_rained_version(rained_dir, current_version))
-                    {
-                        goto fetch_error;
-                    }
+                bool success;
 
-                    if (process_rained_versions(available_versions))
-                    {
-                        // set selected version to current
-                        for (unsigned int i = 0; i < available_versions.size(); i++)
-                        {
-                            if (available_versions[i].version_name == current_version)
-                            {
-                                selected_version = i;
-                                cur_release_info = available_versions[i];
-                                break;
-                            }
-                        }
+                try { success = query_current_version(); }
+                catch (...) { success = false; }
 
-                        if (is_rained_installed && cur_release_info.url.empty())
-                            throw std::runtime_error("could not find current release info...");
-
-                        cur_state = AppState::CHOOSE_VERSION;
-                    }
-                    else goto fetch_error;
-                    
-                    break;
-                    fetch_error: cur_state = AppState::FETCH_LIST_ERROR;
-                    break;
-                }
-                catch (...)
-                {
+                if (!success)
                     cur_state = AppState::FETCH_LIST_ERROR;
-                }
             }
 
             break;
@@ -293,10 +301,21 @@ void Application::render_main_window()
         std::string prog_msg;
         float progress_value;
         bool is_done = !_install_task->get_progress(prog_msg, progress_value);
+        bool is_faulted = _install_task->get_exception(prog_msg);
 
-        if (is_done)
+        if (is_done && !is_faulted)
         {
             _install_task = nullptr;
+
+            bool s;
+            try { s = query_current_version(); }
+            catch (...) { s = false; }
+
+            if (!s)
+            {
+                fprintf(stderr, "error fetching current version");
+                current_version.clear();
+            }
         }
         else
         {
@@ -308,16 +327,30 @@ void Application::render_main_window()
                 float max_width = ImGui::GetFontSize() * 30.0f;
 
                 ImGui::PushTextWrapPos(max_width);
-                ImGui::TextWrapped("%s", prog_msg.c_str());
-                ImGui::PopTextWrapPos();
 
-                if (progress_value >= 0.0f)
+                if (!is_faulted)
                 {
-                    ImGui::ProgressBar(progress_value, ImVec2(max_width, 0.0f));
+                    ImGui::TextWrapped("%s", prog_msg.c_str());
+
+                    if (progress_value >= 0.0f)
+                    {
+                        ImGui::ProgressBar(progress_value, ImVec2(max_width, 0.0f));
+                    }
+                    else // negative progress value means it should display an indeterminate value
+                    {
+                        ImGui::ProgressBar(-1.0f * ImGui::GetTime(), ImVec2(max_width, 0.0f));
+                    }
+
+                    if (ImGui::Button("Cancel"))
+                        _install_task->cancel();
                 }
-                else // negative progress value means it should display an indeterminate value
+                else
                 {
-                    ImGui::ProgressBar(-1.0f * ImGui::GetTime(), ImVec2(max_width, 0.0f));
+                    ImGui::TextWrapped("ERROR! %s", prog_msg.c_str());
+                    if (ImGui::Button("OK"))
+                    {
+                        ImGui::CloseCurrentPopup();
+                    }
                 }
                 ImGui::EndPopup();
             }
@@ -346,6 +379,7 @@ InstallTask::InstallTask(const std::filesystem::path &rained_dir, const ReleaseI
     _progress = 0;
     _cancel_requested = false;
     _is_thread_done = false;
+    _thread_faulted = false;
 
     _thread = std::thread(&InstallTask::_thread_proc, this);
 }
@@ -445,6 +479,8 @@ static std::filesystem::path download_release(const ReleaseInfo &release, std::f
 #endif
 
     // download archive
+    bool canceled = false;
+
     if (!std::filesystem::exists(download_archive_path))
     {
         if (!progress_callback(0.0f)) return download_archive_path;
@@ -455,14 +491,19 @@ static std::filesystem::path download_release(const ReleaseInfo &release, std::f
             cpr::UserAgent(USER_AGENT),
             cpr::ProgressCallback([&](cpr::cpr_off_t download_total, cpr::cpr_off_t download_now, cpr::cpr_off_t, cpr::cpr_off_t, intptr_t)
             {
-                return progress_callback((float)download_now / download_total);
+                canceled = !progress_callback((float)download_now / download_total);
+                return !canceled;
             })
         );
 
         if (r.status_code != 200)
-        {
             throw std::runtime_error("ERROR: http download status code is " + std::to_string(r.status_code));
-        }
+    }
+
+    if (canceled)
+    {
+        std::filesystem::remove(download_archive_path);
+        return "";
     }
 
     return download_archive_path;
@@ -512,6 +553,12 @@ void InstallTask::_install()
 
     if (!cur_release_archive.empty())
     {
+        {
+            std::lock_guard guard(_mutex);
+            _prog_msg = "Removing old version...";
+            _progress = -1.0f;
+        }
+
         auto ar_for_cur = read_archive_for_platform(cur_release_archive);
 
         // remove all files that were downloaded for this version
@@ -520,7 +567,8 @@ void InstallTask::_install()
 
         std::filesystem::path vm_exe_path = std::filesystem::path(sys::arguments()[0]).filename();
 
-        for (auto &path : ar_for_cur->files())
+        auto &files = ar_for_cur->files();
+        for (auto &path : files)
         {
             // don't delete the version manager executable or config/imgui.ini
             // and additionally, make sure that they aren't replaced when installing
@@ -541,18 +589,33 @@ void InstallTask::_install()
         for (auto &dir_path : directories)
         {
             std::filesystem::path abs_path = _rained_dir / dir_path;
-            if (std::filesystem::is_empty(abs_path))
+            if (std::filesystem::is_directory(abs_path) && std::filesystem::is_empty(abs_path))
                 std::filesystem::remove(abs_path);
         }
+    }
+
+    {
+        std::lock_guard guard(_mutex);
+        if (_cancel_requested) return; // hmm... seems like a bad idea to cancel here
+        _prog_msg = util::format("Installing %s...", desired_release.version_name.c_str());
+        _progress = 0.0f;
     }
     
     auto ar_for_new = read_archive_for_platform(new_release_archive);
 
     // extract files for the new version
-    for (auto &path : ar_for_new->files())
+    auto &files = ar_for_new->files();
+    int files_processed = 0;
+    for (auto &path : files)
     {
         if (ignore_list.find(path) != ignore_list.end()) continue;
         ar_for_new->extract_file(path, _rained_dir);
+
+        files_processed++;
+
+        std::lock_guard guard(_mutex);
+        _progress = (float)files_processed / files.size();
+        if (_cancel_requested) return; // hmm... seems like a bad idea to cancel here
     }
 
     //ar.extract_all(install_path);

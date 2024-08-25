@@ -74,6 +74,7 @@ private:
     bool about_window_open = false;
 
     void install_version(const ReleaseInfo &release_info);
+    bool query_current_version();
 
 public:
     Application(const Application&) = delete;
