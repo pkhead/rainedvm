@@ -374,7 +374,7 @@ void Application::render_main_window()
                     }
                     else // negative progress value means it should display an indeterminate value
                     {
-                        ImGui::ProgressBar(-1.0f * ImGui::GetTime(), ImVec2(max_width, 0.0f));
+                        ImGui::ProgressBar(-1.0f * (float)ImGui::GetTime(), ImVec2(max_width, 0.0f));
                     }
 
                     if (ImGui::Button("Cancel"))
@@ -668,7 +668,7 @@ void InstallTask::_install()
     std::filesystem::path new_release_archive = download_release(desired_release, progress_callback);
     if (_cancel_requested) return; // to lazy to lock mutex
 
-    std::unordered_set<std::string> ignore_list;
+    std::unordered_set<std::filesystem::path::string_type> ignore_list;
 
     if (!cur_release_archive.empty())
     {
@@ -682,7 +682,7 @@ void InstallTask::_install()
 
         // remove all files that were downloaded for this version
         // TODO: if the user tampered with the file, ask if they want it overwritten
-        std::unordered_set<std::filesystem::path> directories;
+        std::unordered_set<std::filesystem::path::string_type> directories;
 
         std::filesystem::path vm_exe_path = std::filesystem::path(sys::arguments()[0]).filename();
 
@@ -713,8 +713,8 @@ void InstallTask::_install()
 
                     char buf0[1024];
                     char buf1[1024];
-                    int buf0_read = 0;
-                    int buf1_read = 0;
+                    std::streamsize buf0_read = 0;
+                    std::streamsize buf1_read = 0;
                     while (true)
                     {
                         file_data.read(buf0, sizeof(buf0));
@@ -758,14 +758,14 @@ void InstallTask::_install()
             if (ignore_file)
             {
                 if (std::filesystem::exists(file_dest_path))
-                    ignore_list.emplace(path);
+                    ignore_list.emplace(path.native());
             }
             else
             {
                 std::filesystem::remove(file_dest_path);
 
                 if (path.has_parent_path())
-                    directories.emplace(path.parent_path());
+                    directories.emplace(path.parent_path().native());
             }
         }
 
@@ -792,7 +792,7 @@ void InstallTask::_install()
     int files_processed = 0;
     for (auto &path : files)
     {
-        if (ignore_list.find(path) != ignore_list.end()) continue;
+        if (ignore_list.find(path.native()) != ignore_list.end()) continue;
         ar_for_new->extract_file(path, _rained_dir);
 
         files_processed++;

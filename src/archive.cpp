@@ -73,7 +73,7 @@ void archive::zip_archive::extract_all(const std::filesystem::path &dest_dir)
 
 void archive::zip_archive::extract_file(const std::filesystem::path &entry_path, const std::filesystem::path &dest_dir)
 {
-    if (mz_zip_reader_locate_entry(p_impl->zip_reader, entry_path.c_str(), false) != MZ_OK)
+    if (mz_zip_reader_locate_entry(p_impl->zip_reader, entry_path.u8string().c_str(), false) != MZ_OK)
         throw archive::archive_exception("could not locate entry");
 
     std::filesystem::path dest_path = dest_dir / entry_path.filename();
@@ -84,7 +84,7 @@ void archive::zip_archive::extract_file(const std::filesystem::path &entry_path,
 
 void archive::zip_archive::extract_file(const std::filesystem::path &entry_path, std::ostream &dest_stream)
 {
-    if (mz_zip_reader_locate_entry(p_impl->zip_reader, entry_path.c_str(), false) != MZ_OK)
+    if (mz_zip_reader_locate_entry(p_impl->zip_reader, entry_path.u8string().c_str(), false) != MZ_OK)
         throw archive::archive_exception("could not locate entry");
 
     if (mz_zip_reader_entry_open(p_impl->zip_reader) != MZ_OK)

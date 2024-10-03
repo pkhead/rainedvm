@@ -26,6 +26,10 @@ sources = files(
 incdirs = include_directories('imgui')
 deps = []
 
+if host_machine.system() == 'windows'
+    deps += dependency('libcurl', static : true)
+endif
+
 deps += dependency('freetype2', static : host_machine.system() == 'windows')
 deps += dependency('glfw3', static : true)
 deps += dependency('cpr', static : true)

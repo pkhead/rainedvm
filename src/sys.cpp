@@ -75,7 +75,7 @@ int sys::subprocess(const std::string &cmdline, std::ostream &stdout_stream)
     DWORD dwRead;
 
     while (ReadFile(cout_r, buf, sizeof(buf)-1, &dwRead, NULL))
-        out_stdout.append(buf, dwRead);
+        stdout_stream.write(buf, dwRead);
 
     if (GetLastError() != ERROR_BROKEN_PIPE)
         THROW_WIN32_ERROR();
@@ -110,7 +110,53 @@ int sys::subprocess(const std::string &cmdline, std::ostream &stdout_stream)
 int sys::subprocess(const std::string &cmdline)
 {
 #ifdef _WIN32
-    #error sys::subprocess(const std::string& cmdline) is not defined for Windows
+    STARTUPINFO si;
+    ZeroMemory(&si, sizeof(si));
+    PROCESS_INFORMATION pi;
+    ZeroMemory(&pi, sizeof(pi));
+    
+    si.cb = sizeof(STARTUPINFO);
+    si.dwFlags |= STARTF_USESTDHANDLES | STARTF_USESHOWWINDOW;
+    si.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
+    si.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE);
+    si.hStdError = GetStdHandle(STD_ERROR_HANDLE);
+    si.wShowWindow = SW_HIDE;
+
+    //si.dwFlags = STARTF_USESHOWWINDOW;
+    //si.wShowWindow = SW_HIDE;
+
+    char cmd[256];
+    strcpy_s(cmd, 256, cmdline.c_str());
+
+    BOOL success = CreateProcess(
+        NULL,
+        cmd,
+        NULL,
+        NULL,
+        TRUE,
+        0,
+        NULL,
+        NULL,
+        &si,
+        &pi
+    );
+
+    if (success)
+    {
+        CloseHandle(pi.hThread);
+    }
+    else
+    {
+        THROW_WIN32_ERROR();
+    }
+
+    WaitForSingleObject(pi.hProcess, INFINITE);
+
+    DWORD exitCode;
+    GetExitCodeProcess(pi.hProcess, &exitCode);
+    CloseHandle(pi.hProcess);
+    
+    return (int)exitCode;
 #else
     auto pipe = popen(cmdline.c_str(), "r");
     if (!pipe)
@@ -123,7 +169,13 @@ int sys::subprocess(const std::string &cmdline)
 bool sys::open_url(const std::string &url)
 {
 #ifdef _WIN32
-    ShellExecuteA(NULL, "open", url.c_str(), NULL, NULL, SW_SHOWNORMAL);
+    INT_PTR ret = (INT_PTR) ShellExecuteA(NULL, "open", url.c_str(), NULL, NULL, SW_SHOWNORMAL);
+    if (ret == 32) return true;
+    else
+    {
+        THROW_WIN32_ERROR();
+        return false;
+    }
 #else
     pid_t pid;
 
