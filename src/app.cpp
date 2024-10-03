@@ -244,13 +244,7 @@ void Application::render_main_window()
         if (ImGui::Begin("About", &about_window_open, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoCollapse))
         {
             ImGui::Text("Rained Version Manager " RAINEDUPDATE_VERSION);
-            ImGui::SeparatorText("Credits");
-            ImGui::BulletText("GLFW");
-            ImGui::BulletText("Dear ImGui");
-            ImGui::BulletText("nlohmann::json");
-            ImGui::BulletText("imgui_markdown");
-            ImGui::BulletText("minizip-ng");
-            ImGui::BulletText("cpr");
+            ImGui::TextLinkOpenURL("Credits", "CREDITS.txt");
         } ImGui::End();
     }
 
