@@ -6,6 +6,7 @@
 #include <memory>
 #include <thread>
 #include <mutex>
+#include <condition_variable>
 
 struct ReleaseInfo
 {
@@ -15,7 +16,14 @@ struct ReleaseInfo
     std::string changelog;
     std::string linux_download_url;
     std::string windows_download_url;
-}; // struct ReleaseInfo
+};
+
+struct OverwritePromptInfo
+{
+    std::string display_file_path;
+    int user_input;
+    std::shared_ptr<std::condition_variable> cv;
+};
 
 class InstallTask
 {
@@ -23,6 +31,7 @@ private:
     std::thread _thread;
     std::mutex _mutex;
     std::filesystem::path _rained_dir;
+    std::unique_ptr<OverwritePromptInfo> _overwrite_prompt;
 
     std::string _prog_msg;
     float _progress;
@@ -38,6 +47,8 @@ private:
 
     void _thread_proc();
     void _install();
+
+    int prompt_overwrite(const std::filesystem::path &file_path);
     
 public:
     InstallTask(const InstallTask&) = delete;
@@ -48,6 +59,8 @@ public:
     // returns true if still processing, false if done.
     bool get_progress(std::string &out_msg, float &out_progress);
     bool get_exception(std::string &out_except);
+    bool get_overwrite_prompt(OverwritePromptInfo &out_prompt_info) const;
+    void set_overwrite_prompt_result(int condition);
     void cancel();
 }; // class InstallTask
 

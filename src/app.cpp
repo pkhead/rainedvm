@@ -4,6 +4,7 @@
 #include <cassert>
 #include <cpr/cpr.h>
 #include <unordered_set>
+#include <condition_variable>
 #include "app.hpp"
 #include "sys.hpp"
 #include "json.hpp"
@@ -353,6 +354,41 @@ void Application::render_main_window()
                         ImGui::CloseCurrentPopup();
                     }
                 }
+
+                // handle any overwrite prompts
+                OverwritePromptInfo prompt_info;
+                if (_install_task->get_overwrite_prompt(prompt_info))
+                {
+                    if (!ImGui::IsPopupOpen("Overwrite?"))
+                        ImGui::OpenPopup("Overwrite?");
+
+                    if (ImGui::BeginPopupModal("Overwrite?", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+                    {
+                        ImGui::Text("Local changes were detected in %s.", prompt_info.display_file_path.c_str());
+                        ImGui::Separator();
+                        if (ImGui::Button("Overwrite Changes"))
+                        {
+                            _install_task->set_overwrite_prompt_result(1);
+                            ImGui::CloseCurrentPopup();
+                        }
+
+                        ImGui::SameLine();
+                        if (ImGui::Button("Keep Changes"))
+                        {
+                            _install_task->set_overwrite_prompt_result(0);
+                            ImGui::CloseCurrentPopup();
+                        }
+
+                        ImGui::SameLine();
+                        if (ImGui::Button("Cancel"))
+                        {
+                            _install_task->set_overwrite_prompt_result(2);
+                            ImGui::CloseCurrentPopup();
+                        }
+
+                        ImGui::EndPopup();
+                    }
+                }
                 ImGui::EndPopup();
             }
         }
@@ -412,6 +448,54 @@ void InstallTask::cancel()
 {
     std::lock_guard guard(_mutex);
     _cancel_requested = true;
+}
+
+bool InstallTask::get_overwrite_prompt(OverwritePromptInfo &out_prompt_info) const
+{
+    if (_overwrite_prompt)
+    {
+        out_prompt_info.display_file_path = _overwrite_prompt->display_file_path;
+        out_prompt_info.cv = _overwrite_prompt->cv;
+        return true;
+    }
+    else
+    {
+        return false;
+    }
+}
+
+void InstallTask::set_overwrite_prompt_result(int condition)
+{
+    std::lock_guard lock(_mutex);
+    if (_overwrite_prompt)
+    {
+        _overwrite_prompt->user_input = condition;
+        _overwrite_prompt->cv->notify_all();
+    }
+}
+
+int InstallTask::prompt_overwrite(const std::filesystem::path &file_path)
+{
+    {
+        std::unique_ptr<OverwritePromptInfo> info = std::make_unique<OverwritePromptInfo>();
+        info->display_file_path = file_path.u8string(); // file_path is already relative here
+        info->user_input = -1;
+        info->cv = std::make_shared<std::condition_variable>();
+
+        auto lock = std::lock_guard(_mutex);
+        _overwrite_prompt = std::move(info);
+    }
+
+    std::unique_lock lock(_mutex);
+    _overwrite_prompt->cv->wait(lock, [&]{ return this->_overwrite_prompt->user_input != -1; });
+    
+    if (!lock.owns_lock())
+        lock.lock();
+    int ret = _overwrite_prompt->user_input;
+    _overwrite_prompt = nullptr;
+    lock.unlock();
+
+    return ret;
 }
 
 void InstallTask::_thread_proc()
@@ -631,8 +715,10 @@ void InstallTask::_install()
                 if (is_different)
                 {
                     printf("changed: %s\n", path.u8string().c_str());
-                    ignore_file = true;
-                    // TODO: ask user if they want to keep the changes or have it be overwritten
+                    int overwrite_result = prompt_overwrite(path);
+                    if (overwrite_result == 2) // canceled
+                        return;
+                    ignore_file = overwrite_result == 0;
                 }
             }
 
