@@ -74,17 +74,33 @@ static bool get_rained_version(const std::filesystem::path &rained_path, std::st
     return true;
 }
 
-static bool process_rained_versions(std::vector<ReleaseInfo> &releases)
+static bool parse_release_info(json &release_json, ReleaseInfo &release)
 {
-    printf("update version list\n");
-    // TODO: add https://api.github.com/repos/pkhead/rained/releases/tags/nightly to the top of the list
+    release.version_name = release_json.at("name");
 
-#ifdef DEBUG
-    std::ifstream test_f("releases.json");
-    json result = json::parse(test_f);
-#else
+    release.api_url = release_json.at("url");
+    release.url = release_json.at("html_url");
+
+    auto assets = release_json.at("assets");
+    if (!assets.is_array()) return false;
+
+    for (auto asset = assets.begin(); asset != assets.end(); asset++)
+    {
+        std::string content_type = asset->at("content_type");
+        if (content_type == "application/x-gzip" || content_type == "application/gzip")
+            release.linux_download_url = asset->at("browser_download_url");
+        else if (content_type == "application/x-zip-compressed" || content_type == "application/zip")
+            release.windows_download_url = asset->at("browser_download_url");
+    }
+
+    release.changelog = std::string("[View on GitHub](") + release.url + ")\n" + std::string(release_json.at("body"));
+    return true;
+}
+
+static bool fetch_json(const std::string &url, json &result)
+{
     cpr::Response r = cpr::Get(
-        cpr::Url("https://api.github.com/repos/pkhead/rained/releases"),
+        cpr::Url(url),
         cpr::UserAgent(USER_AGENT)
     );
 
@@ -101,7 +117,43 @@ static bool process_rained_versions(std::vector<ReleaseInfo> &releases)
         return false;
     }
 
-    json result = json::parse(r.text);
+    result = json::parse(r.text);
+    return true;
+}
+
+static bool process_rained_versions(std::vector<ReleaseInfo> &releases)
+{
+    printf("update version list\n");
+    releases.clear();
+
+    // fetch nightly release first
+    {
+        json result;
+    #ifdef DEBUG
+        std::ifstream test_f("nightly.json");
+        result = json::parse(test_f);
+    #else
+        if (!fetch_json("https://api.github.com/repos/pkhead/rained/releases/tags/nightly", result))
+            return false;
+    #endif
+
+        if (!result.is_object())
+            return false;
+
+        ReleaseInfo release {};
+        if (!parse_release_info(result, release))
+            return false;
+
+        releases.push_back(release);
+    }
+
+#ifdef DEBUG
+    std::ifstream test_f("releases.json");
+    json result = json::parse(test_f);
+#else
+    json result;
+    if (!fetch_json("https://api.github.com/repos/pkhead/rained/releases", result))
+        return false;
 #endif
     
     if (!result.is_array())
@@ -111,30 +163,12 @@ static bool process_rained_versions(std::vector<ReleaseInfo> &releases)
     {
         if (!it->is_object()) return false;
 
-        ReleaseInfo release{};
-        release.version_name = it->at("name");
-
-        // don't show beta versions...
-        // or nightly, code manually fetches data for that
-        if (release.version_name[0] == 'b') continue;
+        // don't process nightly, code explcitly fetched data for that earlier
         if (it->at("tag_name") == "nightly") continue;
 
-        release.api_url = it->at("url");
-        release.url = it->at("html_url");
-
-        auto assets = it->at("assets");
-        if (!assets.is_array()) return false;
-
-        for (auto asset = assets.begin(); asset != assets.end(); asset++)
-        {
-            std::string content_type = asset->at("content_type");
-            if (content_type == "application/x-gzip" || content_type == "application/gzip")
-                release.linux_download_url = asset->at("browser_download_url");
-            else if (content_type == "application/x-zip-compressed" || content_type == "application/zip")
-                release.windows_download_url = asset->at("browser_download_url");
-        }
-
-        release.changelog = std::string("[View on GitHub](") + release.url + ")\n" + std::string(it->at("body"));
+        ReleaseInfo release{};
+        if (!parse_release_info(*it, release))
+            return false;
 
         releases.push_back(release);
     }
@@ -166,12 +200,13 @@ bool Application::query_current_version()
         return false;
     }
 
+    bool is_nightly = current_version.find("dev") != std::string::npos || current_version.find("nightly") != std::string::npos;
     if (!available_versions.empty() || process_rained_versions(available_versions))
     {
         // set selected version to current
         for (unsigned int i = 0; i < available_versions.size(); i++)
         {
-            if (available_versions[i].version_name == current_version)
+            if (available_versions[i].version_name == current_version || (is_nightly && available_versions[i].version_name == "Nightly"))
             {
                 selected_version = i;
                 cur_release_info = available_versions[i];
