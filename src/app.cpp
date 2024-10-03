@@ -285,12 +285,17 @@ void Application::render_main_window()
                 ImGui::Markdown(release.changelog.c_str(), release.changelog.length(), md_config);
 
                 ImGui::EndChild();
-                ImGui::BeginDisabled(release.version_name == current_version);
-                if (ImGui::Button("Install"))
+
+                const char *btn_name = "Install###Install";
+                if (release.version_name == current_version)
+                {
+                    btn_name = "Sync###Install";
+                }
+
+                if (ImGui::Button(btn_name))
                 {
                     install_version(available_versions[selected_version]);
                 }
-                ImGui::EndDisabled();
             }
 
             ImGui::EndGroup();
@@ -662,12 +667,11 @@ void InstallTask::_install()
             std::filesystem::path file_dest_path = _rained_dir / path;
 
             // don't perform any checks in the drizzle cast folder
-            // it's not named drizzle rn, but i do wish i named it that...
-            // future-proofing it
+            // which, depending on the version, may be called "internal" or "drizzle-cast"
             std::string path_str = path.u8string();
             if (!ignore_file &&
                 path_str.substr(0, 15) != "assets/internal" &&
-                path_str.substr(0, 14) != "assets/drizzle" &&
+                path_str.substr(0, 19) != "assets/drizzle-cast" &&
                 std::filesystem::is_regular_file(file_dest_path))
             {
                 bool is_different = false;
