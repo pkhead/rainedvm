@@ -1,3 +1,18 @@
+# Visual Studio files
+/.vs
+/src/rainedvm/Properties
+
+# Visual Studio Code files
+/.vscode
+
+# I think this is for the JetBrains IDE?
+# I don't actually use this, this is just for the convenience of others.
+.idea/
+
+# MSBuild output
+**/bin
+**/obj
+
 # meson stuff
 builddir
 subprojects/*
@@ -6,5 +21,5 @@ subprojects/*
 # version manager cache
 .rainedvm
 
-# rained build
+# rained installation directory for development
 rained-build
