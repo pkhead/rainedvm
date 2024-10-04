@@ -12,8 +12,8 @@
 
 #include "proggy_vector.h"
 #include "app.hpp"
+#include "sys.hpp"
 #include "sys_args_internal.hpp"
-#include "util.hpp"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -55,8 +55,7 @@ void frame(GLFWwindow *window)
         init_window_pos = false;
     }
 
-    std::string winid = util::format("%s###MainWindow", application->window_title.c_str());
-    if (ImGui::Begin(winid.c_str(), &p_open, ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_MenuBar))
+    if (ImGui::Begin("Rained Version Manager", &p_open, ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_MenuBar))
     {
         application->render_main_window();
     } ImGui::End();
@@ -146,7 +145,7 @@ int entry()
     glfwShowWindow(window);
 #endif
     
-    while (!glfwWindowShouldClose(window) && application->running())
+    while (!glfwWindowShouldClose(window))
     {
         // Poll and handle events (inputs, window resize, etc.)
         // You can read the io.WantCaptureMouse, io.WantCaptureKeyboard flags to tell if dear imgui wants to use your inputs.
@@ -189,7 +188,6 @@ int entry()
         glfwSwapBuffers(window);
     }
 
-    int exit_code = application->exit_code;
     delete application;
 
     // Cleanup
@@ -200,7 +198,7 @@ int entry()
     glfwDestroyWindow(window);
     glfwTerminate();
 
-    return exit_code;
+    return 0;
 }
 
 // Main code
