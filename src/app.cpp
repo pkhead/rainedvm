@@ -18,6 +18,17 @@ const char *USER_AGENT = "RainedVersionManager/" RAINEDUPDATE_VERSION " (" SYS_T
 
 Application::Application()
 {
+    // usage:
+    //  rainedvm
+    //  rainedvm install [version]
+    if (sys::arguments().size() >= 3 && sys::arguments()[1] == "install")
+    {
+        requested_update_version = sys::arguments()[2];
+    }
+
+    window_title = "Rained Version Manager";
+    _running = true;
+    exit_code = 0;
     frame = 0;
     cur_state = AppState::FETCH_LIST;
     selected_version = -1;
@@ -32,6 +43,45 @@ Application::Application()
         rained_dir = std::filesystem::current_path();
     else
         rained_dir = std::filesystem::u8path(rained_env).native();
+
+    if (!requested_update_version.empty())
+    {
+        window_title = "Installing...";
+
+        // convert string to lowercase
+        for (auto it = requested_update_version.begin(); it != requested_update_version.end(); it++)
+            *it = std::tolower(*it);
+
+        bool success;
+
+        try { success = query_current_version(); }
+        catch (...) { success = false; }
+
+        if (!success)
+            cur_state = AppState::FETCH_LIST_ERROR;
+        else
+        {
+            cur_state = AppState::UPDATE_MODE;
+
+            // get version that matches requested update version name
+            for (auto& info : available_versions)
+            {
+                std::string version_name = info.version_name;
+                for (auto it = version_name.begin(); it != version_name.end(); it++)
+                    *it = std::tolower(*it);
+
+                if (version_name == requested_update_version)
+                {
+                    install_version(available_versions[selected_version]);
+                    goto exit_loop;
+                }
+            }
+
+            printf("could not find version '%s'", requested_update_version.c_str());
+            exit_code = 1;
+            exit_loop:;
+        }
+    }
 }
 
 Application::~Application()
@@ -330,6 +380,8 @@ void Application::render_main_window()
             ImGui::EndGroup();
             break;
         }
+
+        default: break;
     }
 
     if (_install_task)
@@ -339,92 +391,111 @@ void Application::render_main_window()
         bool is_done = !_install_task->get_progress(prog_msg, progress_value);
         bool is_faulted = _install_task->get_exception(prog_msg);
 
+        auto render_install_window = [&]()
+        {
+            float max_width = ImGui::GetFontSize() * 30.0f;
+            ImGui::PushTextWrapPos(max_width);
+
+            if (!is_faulted)
+            {
+                ImGui::TextWrapped("%s", prog_msg.c_str());
+
+                if (progress_value >= 0.0f)
+                {
+                    ImGui::ProgressBar(progress_value, ImVec2(max_width, 0.0f));
+                }
+                else // negative progress value means it should display an indeterminate value
+                {
+                    ImGui::ProgressBar(-1.0f * (float)ImGui::GetTime(), ImVec2(max_width, 0.0f));
+                }
+
+                if (ImGui::Button("Cancel"))
+                    _install_task->cancel();
+            }
+            else
+            {
+                ImGui::TextWrapped("ERROR! %s", prog_msg.c_str());
+                if (ImGui::Button("OK"))
+                {
+                    ImGui::CloseCurrentPopup();
+                }
+            }
+
+            // handle any overwrite prompts
+            OverwritePromptInfo prompt_info;
+            if (_install_task->get_overwrite_prompt(prompt_info))
+            {
+                if (!ImGui::IsPopupOpen("Overwrite?"))
+                    ImGui::OpenPopup("Overwrite?");
+
+                if (ImGui::BeginPopupModal("Overwrite?", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+                {
+                    ImGui::Text("Local changes were detected in %s.", prompt_info.display_file_path.c_str());
+                    ImGui::Separator();
+                    if (ImGui::Button("Overwrite Changes"))
+                    {
+                        _install_task->set_overwrite_prompt_result(1);
+                        ImGui::CloseCurrentPopup();
+                    }
+
+                    ImGui::SameLine();
+                    if (ImGui::Button("Keep Changes"))
+                    {
+                        _install_task->set_overwrite_prompt_result(0);
+                        ImGui::CloseCurrentPopup();
+                    }
+
+                    ImGui::SameLine();
+                    if (ImGui::Button("Cancel"))
+                    {
+                        _install_task->set_overwrite_prompt_result(2);
+                        ImGui::CloseCurrentPopup();
+                    }
+
+                    ImGui::EndPopup();
+                }
+            }
+        };
+
         if (is_done && !is_faulted)
         {
             _install_task = nullptr;
 
-            bool s;
-            try { s = query_current_version(); }
-            catch (...) { s = false; }
-
-            if (!s)
+            // install task was done through the version selector
+            if (requested_update_version.empty())
             {
-                fprintf(stderr, "error fetching current version");
-                current_version.clear();
+                bool s;
+                try { s = query_current_version(); }
+                catch (...) { s = false; }
+
+                if (!s)
+                {
+                    fprintf(stderr, "error fetching current version");
+                    current_version.clear();
+                }
             }
+
+            // install task was executed from command-line arguments and will exit
+            else
+            {
+                close();
+            }
+
         }
-        else
+        else if (requested_update_version.empty())
         {
             if (!ImGui::IsPopupOpen("Installing..."))
                 ImGui::OpenPopup("Installing...");
 
             if (ImGui::BeginPopupModal("Installing...", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
             {
-                float max_width = ImGui::GetFontSize() * 30.0f;
-
-                ImGui::PushTextWrapPos(max_width);
-
-                if (!is_faulted)
-                {
-                    ImGui::TextWrapped("%s", prog_msg.c_str());
-
-                    if (progress_value >= 0.0f)
-                    {
-                        ImGui::ProgressBar(progress_value, ImVec2(max_width, 0.0f));
-                    }
-                    else // negative progress value means it should display an indeterminate value
-                    {
-                        ImGui::ProgressBar(-1.0f * (float)ImGui::GetTime(), ImVec2(max_width, 0.0f));
-                    }
-
-                    if (ImGui::Button("Cancel"))
-                        _install_task->cancel();
-                }
-                else
-                {
-                    ImGui::TextWrapped("ERROR! %s", prog_msg.c_str());
-                    if (ImGui::Button("OK"))
-                    {
-                        ImGui::CloseCurrentPopup();
-                    }
-                }
-
-                // handle any overwrite prompts
-                OverwritePromptInfo prompt_info;
-                if (_install_task->get_overwrite_prompt(prompt_info))
-                {
-                    if (!ImGui::IsPopupOpen("Overwrite?"))
-                        ImGui::OpenPopup("Overwrite?");
-
-                    if (ImGui::BeginPopupModal("Overwrite?", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
-                    {
-                        ImGui::Text("Local changes were detected in %s.", prompt_info.display_file_path.c_str());
-                        ImGui::Separator();
-                        if (ImGui::Button("Overwrite Changes"))
-                        {
-                            _install_task->set_overwrite_prompt_result(1);
-                            ImGui::CloseCurrentPopup();
-                        }
-
-                        ImGui::SameLine();
-                        if (ImGui::Button("Keep Changes"))
-                        {
-                            _install_task->set_overwrite_prompt_result(0);
-                            ImGui::CloseCurrentPopup();
-                        }
-
-                        ImGui::SameLine();
-                        if (ImGui::Button("Cancel"))
-                        {
-                            _install_task->set_overwrite_prompt_result(2);
-                            ImGui::CloseCurrentPopup();
-                        }
-
-                        ImGui::EndPopup();
-                    }
-                }
+                render_install_window();
                 ImGui::EndPopup();
             }
+        }
+        else
+        {
+            render_install_window();
         }
     }
     

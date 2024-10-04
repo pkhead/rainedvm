@@ -71,13 +71,17 @@ private:
     {
         FETCH_LIST,
         FETCH_LIST_ERROR,
-        CHOOSE_VERSION
+        CHOOSE_VERSION,
+
+        UPDATE_MODE
     } cur_state;
 
     unsigned int frame;
     std::filesystem::path rained_dir;
     std::string current_version;
     std::vector<ReleaseInfo> available_versions;
+
+    std::string requested_update_version;
 
     bool is_rained_installed;
     ReleaseInfo cur_release_info;
@@ -89,6 +93,10 @@ private:
     void install_version(const ReleaseInfo &release_info);
     bool query_current_version();
 
+    bool _running;
+
+    inline void close() { _running = false; }
+
 public:
     Application(const Application&) = delete;
     Application& operator=(Application const&) = delete;
@@ -96,5 +104,8 @@ public:
     Application();
     ~Application();
 
+    std::string window_title;
+    int exit_code;
     void render_main_window();
+    inline bool running() const { return _running; }
 }; // class Application
