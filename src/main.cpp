@@ -12,6 +12,7 @@
 
 #include "proggy_vector.h"
 #include "app.hpp"
+#include "sys.hpp"
 #include "sys_args_internal.hpp"
 
 #ifdef _WIN32
@@ -210,6 +211,44 @@ int main(int argc, char *argv[])
 #ifdef _WIN32
 int wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLine, int nShowCmd)
 {
+    (void)hInstance;
+    (void)hPrevInstance;
+    (void)lpCmdLine;
+    (void)nShowCmd;
+    
+    // retrieve command line arguments
+    int argc;
+    LPWSTR* argv_w = CommandLineToArgvW(GetCommandLineW(), &argc);
+    auto test = std::wstring(argv_w[0]);
+
+    // convert them from wide to narrow, and put them in
+    // argv vector
+    char buf[256];
+    std::vector<char*> argv;
+    for (int i = 0; i < argc; i++)
+    {
+        int res = WideCharToMultiByte(CP_ACP, 0, argv_w[i], -1, buf, 256, NULL, NULL);
+        if (res == 0)
+        {
+            argv.push_back(nullptr);
+        }
+        else
+        {
+            auto len = strlen(buf);
+            char *arg = new char[len + 1];
+            memcpy(arg, buf, len);
+            arg[len] = '\0';
+            argv.push_back(arg);
+        }
+    }
+
+    sys::set_arguments(argc, argv.data());
+
+    // strings can now be deallocated, set_arguments makes a copy of them
+    for (char *arg : argv)
+        delete[] arg;
+    argv.clear();
+
     return entry();
 }
 #endif

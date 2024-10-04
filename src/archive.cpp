@@ -50,6 +50,11 @@ archive::zip_archive::zip_archive(const std::filesystem::path &zip_path) :
         const char *entry_path = file_info->filename;
         printf("%s\n", entry_path);
 
+        // add entry if it isn't a directory
+        size_t entry_path_len = strlen(entry_path);
+        if (entry_path_len == 0 || entry_path[entry_path_len - 1] != '/')
+            entries.push_back(std::filesystem::path(entry_path));
+
         int err = mz_zip_reader_goto_next_entry(p_impl->zip_reader);
         if (err == MZ_END_OF_LIST) break;
         else if (err != MZ_OK)
@@ -76,7 +81,7 @@ void archive::zip_archive::extract_file(const std::filesystem::path &entry_path,
     if (mz_zip_reader_locate_entry(p_impl->zip_reader, entry_path.u8string().c_str(), false) != MZ_OK)
         throw archive::archive_exception("could not locate entry");
 
-    std::filesystem::path dest_path = dest_dir / entry_path.filename();
+    std::filesystem::path dest_path = dest_dir / entry_path;
 
     if (mz_zip_reader_entry_save_file(p_impl->zip_reader, dest_path.u8string().c_str()) != MZ_OK)
         throw archive::archive_exception("could not write to file");

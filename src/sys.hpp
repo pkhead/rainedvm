@@ -3,6 +3,10 @@
 #include <string>
 #include <vector>
 
+#ifdef _WIN32
+#define THROW_WIN32_ERROR() throw std::system_error(std::error_code(GetLastError(), std::system_category()))
+#endif
+
 #if defined(__x86_64__) || defined(_M_X64)
 #define SYS_ARCH "x86_64"
 #elif defined(i386) || defined(__i386__) || defined(__i386) || defined(_M_IX86)

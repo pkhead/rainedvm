@@ -5,7 +5,6 @@
 
 #ifdef _WIN32
 #include <windows.h>
-#define THROW_WIN32_ERROR() throw std::system_error(std::error_code(GetLastError(), std::system_category()))
 #else
 #include <unistd.h>
 #include <sys/wait.h>
