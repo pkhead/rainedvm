@@ -16,6 +16,12 @@ using namespace nlohmann; // what
 
 const char *USER_AGENT = "RainedVersionManager/" RAINEDUPDATE_VERSION " (" SYS_TRIPLET ") libcpr/" CPR_VERSION " libcurl/" LIBCURL_VERSION;
 
+#if _WIN32
+#define ARCHIVE_EXT ".zip"
+#else
+#define ARCHIVE_EXT ".tar.gz"
+#endif
+
 Application::Application()
 {
     frame = 0;
@@ -286,7 +292,7 @@ void Application::render_main_window()
                 for (auto it = available_versions.begin(); it != available_versions.end(); it++)
                 {
                     std::string label;
-                    if (it->version_name == current_version)
+                    if (it->version_name == cur_release_info.version_name)
                         label = it->version_name + " (current)";
                     else
                         label = it->version_name;
@@ -316,7 +322,7 @@ void Application::render_main_window()
                 ImGui::EndChild();
 
                 const char *btn_name = "Install###Install";
-                if (release.version_name == current_version)
+                if (release.version_name == cur_release_info.version_name)
                 {
                     btn_name = "Sync###Install";
                 }
@@ -600,6 +606,10 @@ static std::filesystem::path download_release(const ReleaseInfo &release, std::f
     // download archive
     bool canceled = false;
 
+    // delete nightly cache, since it can change
+    if (release.version_name == "Nightly" && std::filesystem::exists(download_archive_path))
+        std::filesystem::remove(download_archive_path);
+
     if (!std::filesystem::exists(download_archive_path))
     {
         if (!progress_callback(0.0f)) return download_archive_path;
@@ -645,6 +655,8 @@ void InstallTask::_install()
 {
     std::filesystem::path rvm_path = rainedvm_path();
     std::string prog_msg;
+    bool is_old_nightly = cur_release.version_name == "Nightly";
+    bool is_new_nightly = desired_release.version_name == "Nightly";
 
     auto progress_callback = [&](float prog)
     {
@@ -656,12 +668,28 @@ void InstallTask::_install()
     };
 
     // install zip
-    std::filesystem::path cur_release_archive;
-    if (!cur_release.url.empty())
+    std::filesystem::path cur_release_archive = rvm_path / ("rained-current" ARCHIVE_EXT);
+    if (!std::filesystem::exists(cur_release_archive))
     {
-        prog_msg = "Fetching current version...";
-        cur_release_archive = download_release(cur_release, progress_callback);
-        if (_cancel_requested) return; // too lazy to lock mutex
+        if (!cur_release.url.empty())
+        {
+            if (is_old_nightly)
+            {
+                if (!std::filesystem::exists(cur_release_archive))
+                    cur_release_archive = rvm_path / ("rained-Nightly" ARCHIVE_EXT);
+            }
+            else
+            {
+                prog_msg = "Fetching current version...";
+                cur_release_archive = download_release(cur_release, progress_callback);
+            }
+
+            if (_cancel_requested) return; // too lazy to lock mutex
+        }
+        else
+        {
+            cur_release_archive.clear();
+        }
     }
 
     prog_msg = util::format("Fetching %s...", desired_release.version_name.c_str());
@@ -785,22 +813,32 @@ void InstallTask::_install()
         _progress = 0.0f;
     }
     
-    auto ar_for_new = read_archive_for_platform(new_release_archive);
-
     // extract files for the new version
-    auto &files = ar_for_new->files();
-    int files_processed = 0;
-    for (auto &path : files)
     {
-        if (ignore_list.find(path.native()) != ignore_list.end()) continue;
-        ar_for_new->extract_file(path, _rained_dir);
+        auto ar_for_new = read_archive_for_platform(new_release_archive);
 
-        files_processed++;
+        auto &files = ar_for_new->files();
+        int files_processed = 0;
+        for (auto &path : files)
+        {
+            if (ignore_list.find(path.native()) != ignore_list.end()) continue;
+            ar_for_new->extract_file(path, _rained_dir);
 
-        std::lock_guard guard(_mutex);
-        _progress = (float)files_processed / files.size();
-        if (_cancel_requested) return; // hmm... seems like a bad idea to cancel here
+            files_processed++;
+
+            std::lock_guard guard(_mutex);
+            _progress = (float)files_processed / files.size();
+            if (_cancel_requested) return; // hmm... seems like a bad idea to cancel here
+        }
     }
+
+    // copy new version to zip for current
+    cur_release_archive = rvm_path / ("rained-current" ARCHIVE_EXT);
+    std::filesystem::copy_file(
+        new_release_archive,
+        cur_release_archive,
+        std::filesystem::copy_options::overwrite_existing
+    );
 }
 
 InstallTask::~InstallTask()
