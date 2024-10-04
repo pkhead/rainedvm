@@ -5,17 +5,18 @@ Version manager for [Rained](https://github.com/pkhead/Rained)
 Prerequisities:
 - C/C++ compiler 
 - Meson build system
-- libcurl
 
 1. Clone from GitHub:
 ```bash
 git clone --recursive https://github.com/pkhead/rainedvm
 ```
 
-2. (Linux) Install dependencies
+2. Install dependencies
 ```bash
 # debian/ubuntu
-sudo apt install libx11-dev libxkbcommon-dev xorg-dev
+sudo apt install libx11-dev libxkbcommon-dev xorg-dev libcurl4-openssl-dev
+
+# windows - will use meson wrap
 ```
 
 3. Uncomment `#define IMGUI_ENABLE_FREETYPE` in the file [imgui/imconfig.h](imgui/imconfig.h)
