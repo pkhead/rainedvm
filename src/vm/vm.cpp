@@ -224,6 +224,18 @@ bool VersionManager::fetch() {
     return query_current_version();
 }
 
+const std::vector<ReleaseInfo>& VersionManager::get_available_versions() const {
+    return available_versions;
+}
+
+const std::string& VersionManager::get_current_version_name() const {
+    return current_version;
+}
+
+int VersionManager::get_current_version_index() const {
+    return selected_version;
+}
+
 
 
 
@@ -634,7 +646,7 @@ InstallTask::~InstallTask()
         _thread.join();
 }
 
-void Application::install_version(const ReleaseInfo &release)
+std::unique_ptr<InstallTask> VersionManager::start_installation(const ReleaseInfo &release)
 {
-    _install_task = std::make_unique<InstallTask>(rained_dir, cur_release_info, release);
+    return std::make_unique<InstallTask>(rained_dir, cur_release_info, release);
 }

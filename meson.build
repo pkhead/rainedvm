@@ -13,9 +13,9 @@ deps = []
 sources += files(
     'src/sys.cpp',
 
-    # 'src/vm/vm.cpp',
-    # 'src/vm/archive.cpp',
-    # 'src/vm/util.cpp',
+    'src/vm/vm.cpp',
+    'src/vm/archive.cpp',
+    'src/vm/util.cpp',
 
     'src/ui/entry.cpp'
 )
@@ -100,7 +100,7 @@ endif
 if target_machine.system() == 'windows'
     windows = import('windows')
     sources += windows.compile_resources('src/ui/winres.rc',
-        # args: wx_compile_args,
+        args: wx_compile_args,
         include_directories: wx_incdirs)
 endif
 

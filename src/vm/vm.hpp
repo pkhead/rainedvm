@@ -73,7 +73,6 @@ private:
 
     bool is_rained_installed;
     ReleaseInfo cur_release_info;
-    std::unique_ptr<InstallTask> _install_task;
 
     int selected_version;
 
@@ -89,7 +88,8 @@ public:
     // this blocks the thread to fetch some data
     bool fetch();
     
-    std::string get_current_version() const;
+    const std::string& get_current_version_name() const;
+    int get_current_version_index() const;
     const std::vector<ReleaseInfo>& get_available_versions() const;
 
     std::unique_ptr<InstallTask> start_installation(const ReleaseInfo &release_info); 
