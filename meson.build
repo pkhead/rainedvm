@@ -17,7 +17,7 @@ sources += files(
     'src/vm/archive.cpp',
     'src/vm/util.cpp',
 
-    'src/ui/entry.cpp',
+    'src/ui/app.cpp',
     'src/ui/md_parser.cpp',
 
     'deps/md4c/src/entity.c',
