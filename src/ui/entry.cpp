@@ -1,6 +1,7 @@
 #include <vector>
 #include <atomic>
 #include <thread>
+#include <sstream>
 
 #include <wx/wxprec.h>
 #ifndef WX_PRECOMP
@@ -12,6 +13,8 @@
 #include "../vm/vm.hpp"
 #include "../sys.hpp"
 #include "../sys_args_internal.hpp"
+
+#include "md_parser.hpp"
 
 constexpr int ITEM_SPACING = 2;
 
@@ -61,6 +64,7 @@ private:
     wxButton *installButton;
     wxListBox *versionListBox;
     wxStaticText *versionLabel;
+    wxHtmlWindow *htmlWindow;
 
     wxPanel *mainPanel = nullptr;
     wxTimer *timer = nullptr;
@@ -136,6 +140,7 @@ void MyFrame::ClearPage() {
     installButton = nullptr;
     versionListBox = nullptr;
     versionLabel = nullptr;
+    htmlWindow = nullptr;
 }
 
 void MyFrame::ConstructFetchPage() {
@@ -185,8 +190,11 @@ void MyFrame::ConstructVersionSelector() {
     versionLabel =
         new wxStaticText(mainPanel, -1, "Current version: v2.3.2-dev");
     
-    if (vm.get_current_version_name().empty())
+    if (vm.get_current_version_name().empty()) {
         versionLabel->Hide();
+    } else {
+        versionLabel->SetLabel("Current version: " + vm.get_current_version_name());
+    }
 
     sizer0->Add(
         versionLabel,
@@ -228,11 +236,10 @@ void MyFrame::ConstructVersionSelector() {
         wxALL | wxEXPAND,
         ITEM_SPACING);
     
-    OverriddenHtmlWindow *htmlContent = new OverriddenHtmlWindow(
+    htmlWindow = new OverriddenHtmlWindow(
         mainPanel, -1, wxDefaultPosition, wxDefaultSize);
-    htmlContent->LoadPage("page.html");
     sizer2->Add(
-        htmlContent,
+        htmlWindow,
         1, wxALL | wxEXPAND, ITEM_SPACING
     );
 
@@ -287,6 +294,14 @@ void MyFrame::OnVersionSelect(wxCommandEvent &event) {
     }
 
     installButton->Enable(selectedVersionIndex != -1);
+
+    if (selectedVersionIndex != -1) {
+        const auto &info = vm.get_available_versions()[selectedVersionIndex];
+        std::string htmlOutput = parseMarkdownToHTML(info.changelog);
+        htmlWindow->SetPage(htmlOutput);
+    } else {
+        htmlWindow->SetPage("<html></html>");
+    }
 }
 
 void MyFrame::OnInstallButtonPressed(wxCommandEvent &event) {

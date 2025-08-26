@@ -97,7 +97,7 @@ static bool parse_release_info(json &release_json, ReleaseInfo &release)
             release.windows_download_url = asset->at("browser_download_url");
     }
 
-    release.changelog = std::string("[View on GitHub](") + release.url + ")\n" + std::string(release_json.at("body"));
+    release.changelog = std::string("[View on GitHub](") + release.url + ")\n\n" + std::string(release_json.at("body"));
     return true;
 }
 

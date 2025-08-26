@@ -1,6 +1,6 @@
 project(
     'rainedvm',
-    'cpp',
+    'cpp', 'c',
     version : '2.0.0',
     default_options : ['warning_level=3', 'cpp_std=c++17', 'default_library=static']
 )
@@ -17,7 +17,16 @@ sources += files(
     'src/vm/archive.cpp',
     'src/vm/util.cpp',
 
-    'src/ui/entry.cpp'
+    'src/ui/entry.cpp',
+    'src/ui/md_parser.cpp',
+
+    'deps/md4c/src/entity.c',
+    'deps/md4c/src/md4c.c',
+    'deps/md4c/src/md4c-html.c',
+)
+
+incdirs += include_directories(
+    'deps/md4c/src'
 )
 
 if target_machine.system() == 'windows'
