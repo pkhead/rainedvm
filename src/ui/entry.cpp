@@ -66,6 +66,8 @@ private:
     wxTimer *timer = nullptr;
     std::unique_ptr<std::thread> thread;
 
+    void Fetch();
+
     void ClearPage();
     void ConstructFetchPage();
     void ConstructVersionSelector();
@@ -103,22 +105,27 @@ MyFrame::MyFrame()
     SetMenuBar(menuBar);
 
     mainPanel = new wxPanel(this, wxID_ANY);
-    ConstructFetchPage();
-
-    timer = new wxTimer(this, ID_FetchCheckTimer);
-    timer->Start(1);
-
-    thread = std::make_unique<std::thread>(([this]{
-        vm.fetch();
-        wxMilliSleep(1000);
-        is_vm_fetch_done = true;
-    }));
+    Fetch();
 
     Bind(wxEVT_LISTBOX, &MyFrame::OnVersionSelect, this, ID_VersionList);
     Bind(wxEVT_BUTTON, &MyFrame::OnInstallButtonPressed, this, ID_InstallButton);
     Bind(wxEVT_TIMER, &MyFrame::OnFetchCheckTimer, this, ID_FetchCheckTimer);
     Bind(wxEVT_MENU, &MyFrame::OnExit, this, wxID_EXIT);
     Bind(wxEVT_MENU, &MyFrame::OnAbout, this, wxID_ABOUT);
+}
+
+void MyFrame::Fetch() {
+    ConstructFetchPage();
+    
+    timer = new wxTimer(this, ID_FetchCheckTimer);
+    timer->Start(1);
+    
+    is_vm_fetch_done = false;
+    thread = std::make_unique<std::thread>(([this]{
+        vm.fetch();
+        wxMilliSleep(100);
+        is_vm_fetch_done = true;
+    }));
 }
 
 void MyFrame::ClearPage() {
@@ -155,6 +162,7 @@ void MyFrame::ConstructFetchPage() {
     sizer->AddStretchSpacer(1);
 
     mainPanel->SetSizerAndFit(sizer);
+    Layout();
 }
 
 void MyFrame::ConstructVersionSelector() {
@@ -286,37 +294,75 @@ void MyFrame::OnInstallButtonPressed(wxCommandEvent &event) {
 
     if (selectedVersionIndex == -1) return;
 
-    wxProgressDialog dlg(
-        "Installing...", "", 1000, this,
-        wxPD_APP_MODAL | wxPD_CAN_ABORT);
-    
-    std::unique_ptr<InstallTask> task = 
-        vm.start_installation(vm.get_available_versions()[selectedVersionIndex]);
-    
-    while (true) {
-        std::string msg;
-        float progress;
+    {
+        wxProgressDialog dlg(
+            "Installing...", "Installing...", 1000, this,
+            wxPD_APP_MODAL | wxPD_CAN_ABORT);
+        
+        std::unique_ptr<InstallTask> task = 
+            vm.start_installation(vm.get_available_versions()[selectedVersionIndex]);
+        
+        while (true) {
+            std::string msg;
+            float progress;
 
-        if (!task->get_progress(msg, progress)) {
-            std::string exceptionMsg;
-            if (task->get_exception(exceptionMsg)) {
-                exceptionMsg = "Exception occurred\n\n" + exceptionMsg;
-                wxMessageBox(
-                    exceptionMsg, wxMessageBoxCaptionStr,
-                    wxOK | wxCENTER | wxICON_ERROR, this);
+            if (!task->get_progress(msg, progress)) {
+                std::string exceptionMsg;
+                if (task->get_exception(exceptionMsg)) {
+                    exceptionMsg = "Exception occurred\n\n" + exceptionMsg;
+                    wxMessageBox(
+                        exceptionMsg, wxMessageBoxCaptionStr,
+                        wxOK | wxCENTER | wxICON_ERROR, this);
+                }
+
+                task = nullptr;
+                break;
             }
 
-            task = nullptr;
-            break;
-        }
-        
-        if (!dlg.Update((int)(progress * 999), msg)) {
-            task = nullptr;
-            break;
-        }
+            OverwritePromptInfo prompt;
+            if (task->get_overwrite_prompt(prompt)) {
+                wxMessageDialog dlg(
+                    this, "Local changes were detected in " + prompt.display_file_path,
+                    "Overwrite?", wxYES_NO | wxCANCEL | wxNO_DEFAULT | wxCENTER);
+                
+                dlg.SetYesNoCancelLabels("Overwrite Changes", "Keep Changes", "Cancel");
+                switch (dlg.ShowModal()) {
+                    case wxID_YES:
+                        task->set_overwrite_prompt_result(1);
+                        break;
+                    
+                    case wxID_NO:
+                        task->set_overwrite_prompt_result(0);
+                        break;
 
-        wxMilliSleep(10);
+                    case wxID_CANCEL:
+                        task->set_overwrite_prompt_result(2);
+                        break;
+
+                    default:
+                        wxLogError("dlg.ShowModal() invalid return value");
+                        task->set_overwrite_prompt_result(2);
+                        break;
+                }
+            }
+            
+            bool cont;
+            if (progress >= 0.f) {
+                cont = dlg.Update((int)(progress * 999), msg);
+            } else {
+                cont = dlg.Pulse(msg);
+            }
+
+            if (!cont) {
+                task = nullptr;
+                break;
+            }
+
+            wxMilliSleep(10);
+        }
     }
+
+    Fetch();
 }
 
 wxIMPLEMENT_APP(MyApp);
