@@ -1,9 +1,13 @@
 # Rained Version Manager
 Version manager for [Rained](https://github.com/pkhead/Rained)
 
+> [!note]
+> If attempting to run the executable fails, you might need to install the
+> [Microsoft Visual C++ Redistributable](https://aka.ms/vs/17/release/vc_redist.x64.exe)
+
 ## Building
 Prerequisities:
-- C/C++ compiler 
+- C and C++17 compiler 
 - Meson build system
 
 1. Clone from GitHub:
@@ -19,15 +23,12 @@ sudo apt install libx11-dev libxkbcommon-dev xorg-dev libcurl4-openssl-dev
 # windows - will use meson wrap
 ```
 
-3. Uncomment `#define IMGUI_ENABLE_FREETYPE` in the file [imgui/imconfig.h](imgui/imconfig.h)
-(I don't know how to make the repository track this, lol)
-
-4. Setup Meson build directory (first-time only):
+3. Setup Meson build directory (first-time only):
 ```bash
 meson setup builddir
 ```
 
-5. Compile and run:
+4. Compile and run:
 ```bash
 meson compile -C builddir
 builddir/rainedvm
