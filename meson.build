@@ -52,7 +52,7 @@ wx_compile_args = []
 if wxconfig.found()
     deps += dependency('wxwidgets',
         required : true,
-        version : '>=3.0.0',
+        version : '>=3.2.8',
         modules: ['base', 'core', 'html'])
     
     run_res = run_command(wxconfig, '--cflags',
