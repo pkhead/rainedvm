@@ -263,7 +263,7 @@ void RainedVMFrame::OnVersionSelect(wxCommandEvent &event) {
         const auto &info = vm.get_available_versions()[selectedVersionIndex];
         std::string htmlOutput = parseMarkdownToHTML(info.changelog);
         htmlOutput = fixHTML(
-            htmlOutput, GetBackgroundColour(), GetForegroundColour());
+            htmlOutput, mainPanel->GetBackgroundColour(), GetForegroundColour());
         
         htmlWindow->SetPage(htmlOutput);
     } else {
