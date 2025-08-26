@@ -1,15 +1,15 @@
-#include <imgui.h>
 #include <cstdio>
 #include <sstream>
 #include <cassert>
 #include <cpr/cpr.h>
 #include <unordered_set>
 #include <condition_variable>
-#include "app.hpp"
-#include "sys.hpp"
+
 #include "json.hpp"
+#include "../sys.hpp"
+
+#include "vm.hpp"
 #include "archive.hpp"
-#include "imgui_markdown.h"
 #include "util.hpp"
 
 using namespace nlohmann; // what
@@ -22,10 +22,8 @@ const char *USER_AGENT = "RainedVersionManager/" RAINEDUPDATE_VERSION " (" SYS_T
 #define ARCHIVE_EXT ".tar.gz"
 #endif
 
-Application::Application()
+VersionManager::VersionManager()
 {
-    frame = 0;
-    cur_state = AppState::FETCH_LIST;
     selected_version = -1;
     is_rained_installed = true; // will check that it isn't later
     cur_release_info = {};
@@ -40,7 +38,7 @@ Application::Application()
         rained_dir = std::filesystem::u8path(rained_env).native();
 }
 
-Application::~Application()
+VersionManager::~VersionManager()
 {
 
 }
@@ -182,16 +180,7 @@ static bool process_rained_versions(std::vector<ReleaseInfo> &releases)
     return true;
 }
 
-static void markdown_link_callback(ImGui::MarkdownLinkCallbackData data)
-{
-    if (data.isImage) return;
-    if (!sys::open_url(std::string(data.link, data.linkLength)))
-    {
-        fprintf(stderr, "could not open url");
-    }
-}
-
-bool Application::query_current_version()
+bool VersionManager::query_current_version()
 {
     is_rained_installed = true;
 
@@ -222,8 +211,6 @@ bool Application::query_current_version()
 
         if (is_rained_installed && cur_release_info.url.empty())
             throw std::runtime_error("could not find current release info...");
-
-        cur_state = AppState::CHOOSE_VERSION;
     }
     else
     {
@@ -233,208 +220,8 @@ bool Application::query_current_version()
     return true;
 }
 
-void Application::render_main_window()
-{
-    ImGui::BeginMenuBar();
-    {
-        if (ImGui::MenuItem("About"))
-        {
-            about_window_open = true;
-        }
-    }
-    ImGui::EndMenuBar();
-
-    // about window
-    if (about_window_open)
-    {
-        if (ImGui::Begin("About", &about_window_open, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoCollapse))
-        {
-            ImGui::Text("Rained Version Manager " RAINEDUPDATE_VERSION);
-            ImGui::TextLinkOpenURL("Credits", "CREDITS.txt");
-        } ImGui::End();
-    }
-
-    switch (cur_state)
-    {
-        case AppState::FETCH_LIST:
-        {
-            ImGui::Text("Fetching current Rained version...");
-
-            if (frame > 10)
-            {
-                bool success;
-
-                try { success = query_current_version(); }
-                catch (...) { success = false; }
-
-                if (!success)
-                    cur_state = AppState::FETCH_LIST_ERROR;
-            }
-
-            break;
-        }
-        
-        case AppState::FETCH_LIST_ERROR:
-        {
-            ImGui::Text("An error occured. Please try again later.");
-            break;
-        }
-        
-        case AppState::CHOOSE_VERSION:
-        {
-            if (is_rained_installed)
-                ImGui::Text("Current version: %s", current_version.c_str());
-
-            ImGuiChildFlags child_flags = ImGuiChildFlags_Border | ImGuiChildFlags_ResizeX;
-            ImGui::BeginChild("Version List", ImVec2(ImGui::GetFontSize() * 10.0f, -FLT_MIN), child_flags);
-            {
-                int index = 0;
-                for (auto it = available_versions.begin(); it != available_versions.end(); it++)
-                {
-                    std::string label;
-                    if (it->version_name == cur_release_info.version_name)
-                        label = it->version_name + " (current)";
-                    else
-                        label = it->version_name;
-                        
-                    if (ImGui::Selectable(label.c_str(), index == selected_version))
-                        selected_version = index;
-
-                    index++;
-                }
-            }
-            ImGui::EndChild();
-
-            ImGui::SameLine();
-            ImGui::BeginGroup();
-
-            if (selected_version >= 0)
-            {
-                ImVec2 content_region_avail = ImGui::GetContentRegionAvail();
-                ImGui::BeginChild("Changelog", ImVec2(content_region_avail.x, content_region_avail.y - ImGui::GetFrameHeight() - ImGui::GetStyle().ItemSpacing.y));
-                ReleaseInfo &release = available_versions[selected_version];
-
-                ImGui::MarkdownConfig md_config{};
-                md_config.formatCallback = ImGui::defaultMarkdownFormatCallback;
-                md_config.linkCallback = markdown_link_callback;
-                ImGui::Markdown(release.changelog.c_str(), release.changelog.length(), md_config);
-
-                ImGui::EndChild();
-
-                const char *btn_name = "Install###Install";
-                if (release.version_name == cur_release_info.version_name)
-                {
-                    btn_name = "Sync###Install";
-                }
-
-                if (ImGui::Button(btn_name))
-                {
-                    install_version(available_versions[selected_version]);
-                }
-            }
-
-            ImGui::EndGroup();
-            break;
-        }
-    }
-
-    if (_install_task)
-    {
-        std::string prog_msg;
-        float progress_value;
-        bool is_done = !_install_task->get_progress(prog_msg, progress_value);
-        bool is_faulted = _install_task->get_exception(prog_msg);
-
-        if (is_done && !is_faulted)
-        {
-            _install_task = nullptr;
-
-            bool s;
-            try { s = query_current_version(); }
-            catch (...) { s = false; }
-
-            if (!s)
-            {
-                fprintf(stderr, "error fetching current version");
-                current_version.clear();
-            }
-        }
-        else
-        {
-            if (!ImGui::IsPopupOpen("Installing..."))
-                ImGui::OpenPopup("Installing...");
-
-            if (ImGui::BeginPopupModal("Installing...", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
-            {
-                float max_width = ImGui::GetFontSize() * 30.0f;
-
-                ImGui::PushTextWrapPos(max_width);
-
-                if (!is_faulted)
-                {
-                    ImGui::TextWrapped("%s", prog_msg.c_str());
-
-                    if (progress_value >= 0.0f)
-                    {
-                        ImGui::ProgressBar(progress_value, ImVec2(max_width, 0.0f));
-                    }
-                    else // negative progress value means it should display an indeterminate value
-                    {
-                        ImGui::ProgressBar(-1.0f * (float)ImGui::GetTime(), ImVec2(max_width, 0.0f));
-                    }
-
-                    if (ImGui::Button("Cancel"))
-                        _install_task->cancel();
-                }
-                else
-                {
-                    ImGui::TextWrapped("ERROR! %s", prog_msg.c_str());
-                    if (ImGui::Button("OK"))
-                    {
-                        ImGui::CloseCurrentPopup();
-                    }
-                }
-
-                // handle any overwrite prompts
-                OverwritePromptInfo prompt_info;
-                if (_install_task->get_overwrite_prompt(prompt_info))
-                {
-                    if (!ImGui::IsPopupOpen("Overwrite?"))
-                        ImGui::OpenPopup("Overwrite?");
-
-                    if (ImGui::BeginPopupModal("Overwrite?", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
-                    {
-                        ImGui::Text("Local changes were detected in %s.", prompt_info.display_file_path.c_str());
-                        ImGui::Separator();
-                        if (ImGui::Button("Overwrite Changes"))
-                        {
-                            _install_task->set_overwrite_prompt_result(1);
-                            ImGui::CloseCurrentPopup();
-                        }
-
-                        ImGui::SameLine();
-                        if (ImGui::Button("Keep Changes"))
-                        {
-                            _install_task->set_overwrite_prompt_result(0);
-                            ImGui::CloseCurrentPopup();
-                        }
-
-                        ImGui::SameLine();
-                        if (ImGui::Button("Cancel"))
-                        {
-                            _install_task->set_overwrite_prompt_result(2);
-                            ImGui::CloseCurrentPopup();
-                        }
-
-                        ImGui::EndPopup();
-                    }
-                }
-                ImGui::EndPopup();
-            }
-        }
-    }
-    
-    frame++;
+bool VersionManager::fetch() {
+    return query_current_version();
 }
 
 

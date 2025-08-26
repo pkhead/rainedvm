@@ -1,0 +1,4 @@
+option('wxwidgets_includedir',
+    type : 'string', description : 'wxWidgets include path. not needed if you have wx-config installed.')
+option('wxwidgets_libdir',
+    type : 'string', description : 'wxWidgets lib path. not needed if you have wx-config installed.')

@@ -64,17 +64,9 @@ public:
     void cancel();
 }; // class InstallTask
 
-class Application
+class VersionManager
 {
 private:
-    enum class AppState
-    {
-        FETCH_LIST,
-        FETCH_LIST_ERROR,
-        CHOOSE_VERSION
-    } cur_state;
-
-    unsigned int frame;
     std::filesystem::path rained_dir;
     std::string current_version;
     std::vector<ReleaseInfo> available_versions;
@@ -84,17 +76,21 @@ private:
     std::unique_ptr<InstallTask> _install_task;
 
     int selected_version;
-    bool about_window_open = false;
 
-    void install_version(const ReleaseInfo &release_info);
     bool query_current_version();
 
 public:
-    Application(const Application&) = delete;
-    Application& operator=(Application const&) = delete;
+    VersionManager(const VersionManager&) = delete;
+    VersionManager& operator=(VersionManager const&) = delete;
 
-    Application();
-    ~Application();
+    VersionManager();
+    ~VersionManager();
 
-    void render_main_window();
+    // this blocks the thread to fetch some data
+    bool fetch();
+    
+    std::string get_current_version() const;
+    const std::vector<ReleaseInfo>& get_available_versions() const;
+
+    std::unique_ptr<InstallTask> start_installation(const ReleaseInfo &release_info); 
 }; // class Application
