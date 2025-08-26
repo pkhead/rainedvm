@@ -30,11 +30,14 @@ incdirs += include_directories(
 )
 
 if target_machine.system() == 'windows'
-    deps += dependency('libcurl', static : true)
+    deps += dependency('libcurl', static : true, required : true)
 endif
 
-deps += dependency('cpr', static : true)
-deps += dependency('minizip')
+deps += dependency('cpr', static : true, required : true)
+deps += dependency('zlib', required : true)
+deps += dependency('bzip2', required : true)
+deps += dependency('liblzma', required : true)
+deps += dependency('minizip', required : true)
 
 # if building with gcc on windows, make sure to statically link mingw libraries
 link_args = []
@@ -62,6 +65,7 @@ if wxconfig.found()
     deps += dependency('wxwidgets',
         required : true,
         version : '>=3.2.8',
+        static : get_option('buildtype') == 'release',
         modules: ['base', 'core', 'html'])
     
     run_res = run_command(wxconfig, '--cflags',
