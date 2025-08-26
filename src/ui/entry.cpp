@@ -53,7 +53,9 @@ private:
 };
 
 bool MyApp::OnInit() {
+#if wxVERSION_NUMBER >= 3300
     SetAppearance(Appearance::System);
+#endif
 
     MyFrame *frame = new MyFrame();
     frame->Show(true);
