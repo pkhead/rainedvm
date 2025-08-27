@@ -5,6 +5,10 @@ Version manager for [Rained](https://github.com/pkhead/Rained)
 > If attempting to run the executable fails, you might need to install the
 > [Microsoft Visual C++ Redistributable](https://aka.ms/vs/17/release/vc_redist.x64.exe)
 
+<p align="center">
+<img src="screenshot.png" />
+</p>
+
 ## Building
 Prerequisities:
 - C and C++17 compiler 
