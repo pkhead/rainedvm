@@ -185,6 +185,10 @@ void RainedVMFrame::ConstructVersionSelector() {
         versionLabel->SetLabel("Current version: " + vm.get_current_version_name());
     }
 
+    // version label is now removed... but i guess i still want to keep the code
+    // for it...
+    versionLabel->Hide();
+
     sizer0->Add(
         versionLabel,
         0,
