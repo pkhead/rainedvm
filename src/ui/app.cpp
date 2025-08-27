@@ -12,10 +12,6 @@
 
 #include "../sys.hpp"
 #include "../sys_args_internal.hpp"
-#include "wx/colour.h"
-#include "wx/gtk/colour.h"
-#include "wx/html/htmlwin.h"
-#include "wx/log.h"
 
 
 bool RainedVMApp::OnInit() {
@@ -42,6 +38,50 @@ wxIMPLEMENT_APP(RainedVMApp);
 
 
 
+static std::string getHexColor(wxColor color) {
+    char buf[8];
+    snprintf(buf, 8, "#%02x%02x%02x", color.Red(), color.Green(), color.Blue());
+    return std::string(buf);
+}
+
+static std::string fixHTML(const std::string &origHtml, wxColour bgColor, wxColour fgColor) {
+    std::string res = "<body style='background-color: "+getHexColor(bgColor)+";'>"
+        + "<font color='"+getHexColor(fgColor)+"'>"
+        + origHtml
+        + "</font></body>";
+    
+    std::string linkColor =
+        getHexColor(wxSystemSettings::GetColour(wxSYS_COLOUR_HOTLIGHT));
+    
+    for (size_t i = 0;;) {
+        i = res.find("<a", i);
+        if (i == std::string::npos) break;
+
+        i = res.find('>', i+1);
+        if (i == std::string::npos) break;
+
+        std::string insert = std::string("<font color=\"") + linkColor + "\">";
+        res = res.insert(i+1, insert);
+        i += insert.size();
+
+        i = res.find("</a>", i);
+        if (i == std::string::npos) break;
+
+        insert = "</font>";
+        res = res.insert(i, insert);
+        i += insert.size();
+        i += 4;
+    }
+    
+    return res;
+}
+
+static std::string fixHTML(const std::string &origHtml)
+{
+    wxColour bgColor = wxSystemSettings::GetColour(wxSYS_COLOUR_LISTBOX);
+    wxColour fgColor = wxSystemSettings::GetColour(wxSYS_COLOUR_LISTBOXTEXT);
+    return fixHTML(origHtml, bgColor, fgColor);
+}
 
 RainedVMFrame::RainedVMFrame()
     : wxFrame(nullptr, wxID_ANY, "Rained Version Manager", wxDefaultPosition, wxSize(640, 480))
@@ -232,21 +272,6 @@ void RainedVMFrame::OnAbout(wxCommandEvent &event) {
     dlg.ShowModal();
 }
 
-static std::string getHexColor(wxColor color) {
-    char buf[8];
-    snprintf(buf, 8, "#%02x%02x%02x", color.Red(), color.Green(), color.Blue());
-    return std::string(buf);
-}
-
-static std::string fixHTML(
-    const std::string &origHtml, wxColor bgColor, wxColor fgColor)
-{
-    return "<body style='background-color: "+getHexColor(bgColor)+";'>"
-        + "<font color='"+getHexColor(fgColor)+"'>"
-        + origHtml
-        + "</font></body>";
-}
-
 void RainedVMFrame::OnVersionSelect(wxCommandEvent &event) {
     (void)event;
 
@@ -262,8 +287,7 @@ void RainedVMFrame::OnVersionSelect(wxCommandEvent &event) {
     if (selectedVersionIndex != -1) {
         const auto &info = vm.get_available_versions()[selectedVersionIndex];
         std::string htmlOutput = parseMarkdownToHTML(info.changelog);
-        htmlOutput = fixHTML(
-            htmlOutput, mainPanel->GetBackgroundColour(), GetForegroundColour());
+        htmlOutput = fixHTML(htmlOutput);
         
         htmlWindow->SetPage(htmlOutput);
     } else {
