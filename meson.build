@@ -64,7 +64,7 @@ wx_compile_args = []
 if wxconfig.found()
     deps += dependency('wxwidgets',
         required : true,
-        version : '>=3.2.8',
+        version : '>=3.2.4',
         static : get_option('buildtype') == 'release',
         modules: ['base', 'core', 'html'])
     
@@ -94,6 +94,7 @@ else
             dependencies: [
                 cxx.find_library('wxmsw32u_html', dirs : [libdir], required : true),
                 cxx.find_library('wxmsw32u_core', dirs : [libdir], required : true),
+                cxx.find_library('wxmsw32u_richtext', dirs : [libdir], required : true),
                 cxx.find_library('wxbase32u', dirs : [libdir], required : true),
             ],
             include_directories: wx_incdirs,
