@@ -94,7 +94,6 @@ else
             dependencies: [
                 cxx.find_library('wxmsw32u_html', dirs : [libdir], required : true),
                 cxx.find_library('wxmsw32u_core', dirs : [libdir], required : true),
-                cxx.find_library('wxmsw32u_richtext', dirs : [libdir], required : true),
                 cxx.find_library('wxbase32u', dirs : [libdir], required : true),
             ],
             include_directories: wx_incdirs,
