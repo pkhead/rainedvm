@@ -84,8 +84,10 @@ static std::string fixHTML(const std::string &origHtml)
 }
 
 RainedVMFrame::RainedVMFrame()
-    : wxFrame(nullptr, wxID_ANY, "Rained Version Manager", wxDefaultPosition, wxSize(640, 480))
+    : wxFrame(nullptr, wxID_ANY, "Rained Version Manager", wxDefaultPosition, wxDefaultSize)
 {
+    SetClientSize(FromDIP(wxSize(500, 360)));
+
     wxMenu *menuFile = new wxMenu;
     menuFile->Append(wxID_EXIT);
 
@@ -142,7 +144,7 @@ void RainedVMFrame::ConstructFetchPage() {
 
     sizer->Add(
         new wxStaticText(mainPanel, wxID_ANY, "Fetching version list..."),
-        0, wxALL | wxALIGN_CENTER, ITEM_SPACING
+        0, wxALL | wxALIGN_CENTER, BORDER_WIDTH
     );
 
     wxGauge *gauge = new wxGauge(mainPanel, wxID_ANY, 100);
@@ -150,7 +152,7 @@ void RainedVMFrame::ConstructFetchPage() {
 
     sizer->Add(
         gauge,
-        0, wxALL | wxALIGN_CENTER, ITEM_SPACING
+        0, wxALL | wxALIGN_CENTER, BORDER_WIDTH
     );
 
     sizer->AddStretchSpacer(1);
@@ -193,8 +195,8 @@ void RainedVMFrame::ConstructVersionSelector() {
         versionLabel,
         0,
         wxALL,
-        ITEM_SPACING);
-    sizer0->Add(sizer1, 1, wxALL | wxEXPAND, ITEM_SPACING);
+        BORDER_WIDTH_LARGE);
+    sizer0->Add(sizer1, 1, wxALL | wxEXPAND, 12);
 
     wxArrayString versionItems;
     activeVersionIndex = vm.get_current_version_index();
@@ -216,29 +218,30 @@ void RainedVMFrame::ConstructVersionSelector() {
     }
     
     // construct the version list box
+    const wxSize sizeM = GetTextExtent("M");
     versionListBox = new wxListBox(
-        mainPanel, ID_VersionList, wxDefaultPosition, wxDefaultSize);
+        mainPanel, ID_VersionList, wxDefaultPosition, wxSize(sizeM.x * 11, -1));
     versionListBox->InsertItems(versionItems, 0);
     if (activeVersionIndex != -1)
         versionListBox->Select(activeVersionIndex);
 
-    sizer1->Add(versionListBox, 0, wxALL | wxEXPAND, ITEM_SPACING);
+    sizer1->Add(versionListBox, 0, wxRIGHT | wxEXPAND, BORDER_WIDTH);
     sizer1->Add(
         sizer2,
         1,
-        wxALL | wxEXPAND,
-        ITEM_SPACING);
+        wxLEFT | wxEXPAND,
+        BORDER_WIDTH);
     
     htmlWindow = new OverriddenHtmlWindow(
         mainPanel, -1, wxDefaultPosition, wxDefaultSize, wxHW_SCROLLBAR_AUTO | wxBORDER_THEME);
     sizer2->Add(
         htmlWindow,
-        1, wxALL | wxEXPAND, ITEM_SPACING
+        1, wxBOTTOM | wxEXPAND, BORDER_WIDTH
     );
 
     sizer2->Add(
         (installButton = new wxButton(mainPanel, ID_InstallButton, "Install")),
-        0, wxALL, ITEM_SPACING
+        0, wxTOP | wxALIGN_RIGHT, BORDER_WIDTH
     );
 
     mainPanel->SetSizerAndFit(sizer0);
@@ -557,17 +560,17 @@ AboutDialog::AboutDialog(wxWindow *parent, wxWindowID id)
 
     sizer->Add(
         htmlWin,
-        1, wxALL | wxEXPAND, ITEM_SPACING
+        1, wxEXPAND, 0
     );
 
     wxSizer *buttonSizer = CreateButtonSizer(wxOK);
     if (buttonSizer) {
         sizer->Add(
             buttonSizer,
-            0, wxALL | wxEXPAND, ITEM_SPACING     
+            0, wxALL | wxEXPAND, 10
         );
     }
 
     SetSizer(sizer);
-    SetSize(wxSize(300, 300));
+    SetClientSize(FromDIP(wxSize(250, 250)));
 }

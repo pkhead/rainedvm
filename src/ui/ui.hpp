@@ -8,7 +8,8 @@
 
 #include "../vm/vm.hpp"
 
-constexpr int ITEM_SPACING = 2;
+constexpr int BORDER_WIDTH = 3;
+constexpr int BORDER_WIDTH_LARGE = 6;
 
 enum {
     ID_VersionList = wxID_HIGHEST,
