@@ -58,6 +58,7 @@ private:
     wxListBox *versionListBox;
     wxStaticText *versionLabel;
     wxHtmlWindow *htmlWindow;
+    wxGauge *gauge;
 
     wxPanel *mainPanel = nullptr;
     wxTimer *timer = nullptr;

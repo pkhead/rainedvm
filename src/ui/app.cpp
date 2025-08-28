@@ -113,12 +113,12 @@ void RainedVMFrame::Fetch() {
     ConstructFetchPage();
     
     timer = new wxTimer(this, ID_FetchCheckTimer);
-    timer->Start(1);
+    timer->Start(33);
     
     is_vm_fetch_done = false;
     thread = std::make_unique<std::thread>(([this]{
         vm.fetch();
-        wxMilliSleep(100);
+        wxMilliSleep(500);
         is_vm_fetch_done = true;
     }));
 }
@@ -132,6 +132,7 @@ void RainedVMFrame::ClearPage() {
     versionListBox = nullptr;
     versionLabel = nullptr;
     htmlWindow = nullptr;
+    gauge = nullptr;
 }
 
 void RainedVMFrame::ConstructFetchPage() {
@@ -147,7 +148,7 @@ void RainedVMFrame::ConstructFetchPage() {
         0, wxALL | wxALIGN_CENTER, BORDER_WIDTH
     );
 
-    wxGauge *gauge = new wxGauge(mainPanel, wxID_ANY, 100);
+    gauge = new wxGauge(mainPanel, wxID_ANY, 100);
     gauge->Pulse();
 
     sizer->Add(
@@ -254,7 +255,9 @@ void RainedVMFrame::ConstructVersionSelector() {
 
 void RainedVMFrame::OnFetchCheckTimer(wxTimerEvent &event) {
     (void)event;
-
+    
+    if (gauge) gauge->Pulse();
+    
     if (is_vm_fetch_done) {
         delete timer;
         timer = nullptr;
